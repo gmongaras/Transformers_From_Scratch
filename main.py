@@ -31,11 +31,15 @@ def train():
     # Hyperparameters
     inputEmbeddingSize = 10
     outputEmbeddingSize = 10
+    attention_heads = 8
+    keySize = 8
+    querySize = keySize
+    valueSize = 8
     
     
     # Other parameters
-    numEmbeddings = 10
-    embeddingSize = 10
+    maxSentenceSize = 512
+    
     
     
     # Other variables
@@ -79,7 +83,7 @@ def train():
     
     ### Training The Model ###
     # Create a transformer model
-    model = transformer(inputVocab, outputVocab, inputEmbeddingSize, outputEmbeddingSize)
+    model = transformer(maxSentenceSize, inputVocab, outputVocab, inputEmbeddingSize, outputEmbeddingSize, attention_heads, keySize, querySize, valueSize)
     
     preds = model(inputs)
     print(preds)
