@@ -5,6 +5,94 @@ import numpy as np
 
 
 
+class multiHeadAttention(nn.Module):
+    # Inputs:
+    #   maxSentenceSize - The maximum length of a sentence to accept
+    #   inputVocabSize - Vocabulary size of the input
+    #   outputVocabSize - Vocabulary size of the output
+    #   inputEmbeddingSize - The size of each input embedding
+    #   outputEmbeddingSize - The size of each output embedding
+    #   attention_heads - The number of attention heads to use
+    #                     in the multi-head attention layer
+    #   keySize - The vector size of the key
+    #   querySize - The vector size of the query
+    #   valueSize - The vector size of the value
+    def __init__(self, maxSentenceSize, inputVocabSize, outputVocabSize, inputEmbeddingSize, outputEmbeddingSize, attention_heads, keySize, querySize, valueSize):
+        super(multiHeadAttention, self).__init__()
+        
+        # Store the number of attention heads
+        self.attention_heads = attention_heads
+        
+        # Store the query, key, and value sizes
+        self.querySize = querySize
+        self.keySize = keySize
+        self.valueSize = valueSize
+        
+        # Randomly create "attention_heads" number of key, value, 
+        # and query weights. Each matrix is of shape
+        # ("inputVocabSize", "querySize") or ("inputVocabSize", "valueSize")
+        for i in range(0, attention_heads):
+            self.keyWeights = torch.tensor(np.random.randint(0, max(inputVocabSize, outputVocabSize), size=(inputEmbeddingSize, querySize)), requires_grad=True, dtype=torch.float64)
+            self.valueWeights = torch.tensor(np.random.randint(0, max(inputVocabSize, outputVocabSize), size=(inputEmbeddingSize, keySize)), requires_grad=True, dtype=torch.float64)
+            self.queryWeights = torch.tensor(np.random.randint(0, max(inputVocabSize, outputVocabSize), size=(inputEmbeddingSize, valueSize)), requires_grad=True, dtype=torch.float64)
+        
+        # Create the weight matrix to convert the multi-head attention
+        # to a single usable. The weight matrix is of the following
+        # shape: (inputEmbeddingSize, attention_heads*maxSentenceSize)
+        self.weightMatrix = torch.tensor(np.random.uniform(0, max(inputVocabSize, outputVocabSize), size=(maxSentenceSize, attention_heads*maxSentenceSize)), requires_grad=True, dtype=torch.float64)
+    
+    
+    # Given some embeddings, the self-attention layer
+    # computes the self-attention for the embeddings
+    # Inputs:
+    #   embeddings - The embeddings to compute the self-attention for
+    def selfAttention(self, embeddings):
+        try:
+            keys = torch.matmul(embeddings, self.keyWeights)
+            values = torch.matmul(embeddings, self.valueWeights)
+            queries = torch.matmul(embeddings, self.queryWeights)
+        except:
+            keys = torch.matmul(embeddings, self.keyWeights.T)
+            values = torch.matmul(embeddings, self.valueWeights.T)
+            queries = torch.matmul(embeddings, self.queryWeights.T)
+        return torch.matmul(nn.functional.softmax(torch.matmul(queries, keys.reshape(keys.shape[0], keys.shape[2], keys.shape[1]))/int(np.sqrt(self.keySize)), dim=-1), values)
+    
+    
+    
+    # Given some embeddings, the multi-head attention layer
+    # computes the multihead attention for the embeddings
+    # Inputs:
+    #   embeddings - The embeddings to compute multi-head attention for
+    def forward(self, embeddings):
+        # Holds "attention_heads" number of self-attention
+        attentionValues = []
+        
+        # Collect the self-attention
+        for i in range(0, self.attention_heads):
+            # Calculate the self-attention for all
+            # given embeddings
+            attentionVals = self.selfAttention(embeddings)
+            # for embedding in embeddings:
+            #     attentionVals.append(self.selfAttention(embedding))
+            attentionValues.append(attentionVals)
+            
+        # Convert the list of attention to a tensor
+        attentionValues = torch.stack(attentionValues)
+        
+        # Reshape the tensor to a workable shape
+        attentionValues = attentionValues.reshape((attentionValues.shape[1], attentionValues.shape[0], attentionValues.shape[2], attentionValues.shape[3]))
+        attentionValues = attentionValues.reshape((attentionValues.shape[0], attentionValues.shape[1]*attentionValues.shape[2], attentionValues.shape[3]))
+        #attentionValues = attentionValues.reshape((int(attentionValues.shape[0]/self.attention_heads), int(attentionValues.shape[1]*self.attention_heads), attentionValues.shape[2]))
+        
+        # Multiply the attention values by the weight matrix
+        finalAttention = torch.matmul(self.weightMatrix, attentionValues)
+        
+        # Return the final attention values
+        return finalAttention
+
+
+
+
 
 class transformer(nn.Module):
     # Inputs:
@@ -42,26 +130,8 @@ class transformer(nn.Module):
         # The word embedding layer for the output
         self.output_embedding_layer = nn.Embedding(self.outputVocabSize, outputEmbeddingSize)
         
-        # Store the number of attention heads
-        self.attention_heads = attention_heads
-        
-        # Store the query, key, and value sizes
-        self.querySize = querySize
-        self.keySize = keySize
-        self.valueSize = valueSize
-        
-        # Randomly create "attention_heads" number of key, value, 
-        # and query weights. Each matrix is of shape
-        # ("inputVocabSize", "querySize") or ("inputVocabSize", "valueSize")
-        for i in range(0, attention_heads):
-            self.keyWeights = torch.tensor(np.random.randint(0, max(self.inputVocabSize, self.outputVocabSize), size=(inputEmbeddingSize, querySize)), requires_grad=True, dtype=torch.float64)
-            self.valueWeights = torch.tensor(np.random.randint(0, max(self.inputVocabSize, self.outputVocabSize), size=(inputEmbeddingSize, keySize)), requires_grad=True, dtype=torch.float64)
-            self.queryWeights = torch.tensor(np.random.randint(0, max(self.inputVocabSize, self.outputVocabSize), size=(inputEmbeddingSize, valueSize)), requires_grad=True, dtype=torch.float64)
-        
-        # Create the weight matrix to convert the multi-head attention
-        # to a single usable. The weight matrix is of the following
-        # shape: (valueSize, attention_heads*maxSentenceSize)
-        self.weightMatrix = torch.tensor(np.random.uniform(0, max(self.inputEmbeddingSize, self.outputVocabSize), size=(maxSentenceSize, attention_heads*maxSentenceSize)), requires_grad=True, dtype=torch.float64)
+        # Create the multi-head attention layer
+        self.multiHead_Attention = multiHeadAttention(maxSentenceSize, self.inputVocabSize, self.outputVocabSize, inputEmbeddingSize, outputEmbeddingSize, attention_heads, keySize, querySize, valueSize)
     
     
     
@@ -129,54 +199,6 @@ class transformer(nn.Module):
     
     
     
-    # Given some embeddings, the self-attention layer
-    # computes the self-attention for the embeddings
-    # Inputs:
-    #   embeddings - The embeddings to compute the self-attention for
-    def selfAttention(self, embeddings):
-        try:
-            keys = torch.matmul(embeddings, self.keyWeights)
-            values = torch.matmul(embeddings, self.valueWeights)
-            queries = torch.matmul(embeddings, self.queryWeights)
-        except:
-                keys = torch.matmul(embeddings, self.keyWeights.T)
-                values = torch.matmul(embeddings, self.valueWeights.T)
-                queries = torch.matmul(embeddings, self.queryWeights.T)
-        return torch.matmul(nn.functional.softmax(torch.matmul(queries, keys.reshape(keys.shape[0], keys.shape[2], keys.shape[1]))/int(np.sqrt(self.keySize)), dim=-1), values)
-    
-
-    
-    # Given some embeddings, the multi-head attention layer
-    # computes the multihead attention for the embeddings
-    # Inputs:
-    #   embeddings - The embeddings to compute multi-head attention for
-    def multiHeadAttention(self, embeddings):
-        # Holds "attention_heads" number of self-attention
-        attentionValues = []
-        
-        # Collect the self-attention
-        for i in range(0, self.attention_heads):
-            # Calculate the self-attention for all
-            # given embeddings
-            attentionVals = self.selfAttention(embeddings)
-            # for embedding in embeddings:
-            #     attentionVals.append(self.selfAttention(embedding))
-            attentionValues.append(attentionVals)
-            
-        # Convert the list of attention to a tensor
-        attentionValues = torch.stack(attentionValues)
-        
-        # Reshape the tensor to a workable shape
-        attentionValues = attentionValues.reshape((attentionValues.shape[1], attentionValues.shape[0], attentionValues.shape[2], attentionValues.shape[3]))
-        attentionValues = attentionValues.reshape((attentionValues.shape[0], attentionValues.shape[1]*attentionValues.shape[2], attentionValues.shape[3]))
-        #attentionValues = attentionValues.reshape((int(attentionValues.shape[0]/self.attention_heads), int(attentionValues.shape[1]*self.attention_heads), attentionValues.shape[2]))
-        
-        # Multiply the attention values by the weight matrix
-        finalAttention = torch.matmul(self.weightMatrix, attentionValues)
-        
-        # Return the final attention values
-        return finalAttention
-    
     
     # Translate the given sentences
     # Input:
@@ -186,8 +208,8 @@ class transformer(nn.Module):
         embeddings = self.embedBatch(x)
         
         # Compute the multi-head attention for the embeddings
-        att = self.multiHeadAttention(embeddings)
-        att = self.multiHeadAttention(att)
-        att = self.multiHeadAttention(att)
-        att = self.multiHeadAttention(att)
+        att = self.multiHead_Attention(embeddings)
+        att = self.multiHead_Attention(att)
+        att = self.multiHead_Attention(att)
+        att = self.multiHead_Attention(att)
         print()
