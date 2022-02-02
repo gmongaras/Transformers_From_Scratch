@@ -32,9 +32,9 @@ def train():
     inputEmbeddingSize = 10
     outputEmbeddingSize = 10
     attention_heads = 8
-    keySize = 8
+    keySize = 10
     querySize = keySize
-    valueSize = 8
+    valueSize = 10
     
     
     # Other parameters

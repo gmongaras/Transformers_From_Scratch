@@ -38,8 +38,9 @@ class multiHeadAttention(nn.Module):
         
         # Create the weight matrix to convert the multi-head attention
         # to a single usable. The weight matrix is of the following
-        # shape: (inputEmbeddingSize, attention_heads*maxSentenceSize)
-        self.weightMatrix = torch.tensor(np.random.uniform(0, max(inputVocabSize, outputVocabSize), size=(maxSentenceSize, attention_heads*maxSentenceSize)), requires_grad=True, dtype=torch.float64)
+        # shape: (maxSentenceSize, attention_heads*maxSentenceSize)
+        #self.weightMatrix = torch.tensor(np.random.uniform(0, max(inputVocabSize, outputVocabSize), size=(maxSentenceSize, attention_heads*maxSentenceSize)), requires_grad=True, dtype=torch.float64)
+        self.weightMatrix = torch.tensor(np.random.uniform(0, max(inputVocabSize, outputVocabSize), size=(attention_heads*valueSize, inputEmbeddingSize)), requires_grad=True, dtype=torch.float64)
     
     
     # Given some embeddings, the self-attention layer
@@ -80,12 +81,12 @@ class multiHeadAttention(nn.Module):
         attentionValues = torch.stack(attentionValues)
         
         # Reshape the tensor to a workable shape
-        attentionValues = attentionValues.reshape((attentionValues.shape[1], attentionValues.shape[0], attentionValues.shape[2], attentionValues.shape[3]))
-        attentionValues = attentionValues.reshape((attentionValues.shape[0], attentionValues.shape[1]*attentionValues.shape[2], attentionValues.shape[3]))
+        #attentionValues = attentionValues.reshape((attentionValues.shape[1], attentionValues.shape[0], attentionValues.shape[2], attentionValues.shape[3]))
+        attentionValues = attentionValues.reshape((attentionValues.shape[1], attentionValues.shape[2], attentionValues.shape[3]*attentionValues.shape[0]))
         #attentionValues = attentionValues.reshape((int(attentionValues.shape[0]/self.attention_heads), int(attentionValues.shape[1]*self.attention_heads), attentionValues.shape[2]))
         
         # Multiply the attention values by the weight matrix
-        finalAttention = torch.matmul(self.weightMatrix, attentionValues)
+        finalAttention = torch.matmul(attentionValues, self.weightMatrix)
         
         # Return the final attention values
         return finalAttention
@@ -208,8 +209,8 @@ class transformer(nn.Module):
         embeddings = self.embedBatch(x)
         
         # Compute the multi-head attention for the embeddings
-        att = self.multiHead_Attention(embeddings)
-        att = self.multiHead_Attention(att)
-        att = self.multiHead_Attention(att)
-        att = self.multiHead_Attention(att)
-        print()
+        att1 = self.multiHead_Attention(embeddings)
+        
+        # Send the attiontion through an add and norm layer
+        att1 += embeddings
+        att1.shape
