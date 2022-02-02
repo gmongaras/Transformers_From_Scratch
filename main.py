@@ -35,6 +35,7 @@ def train():
     keySize = 10
     querySize = keySize
     valueSize = 10
+    numBlocks = 2
     
     
     # Other parameters
@@ -83,7 +84,7 @@ def train():
     
     ### Training The Model ###
     # Create a transformer model
-    model = transformer(maxSentenceSize, inputVocab, outputVocab, inputEmbeddingSize, outputEmbeddingSize, attention_heads, keySize, querySize, valueSize)
+    model = transformer(maxSentenceSize, inputVocab, outputVocab, inputEmbeddingSize, outputEmbeddingSize, attention_heads, keySize, querySize, valueSize, numBlocks)
     
     preds = model(inputs)
     print(preds)
