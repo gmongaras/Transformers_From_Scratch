@@ -35,7 +35,7 @@ def train():
     keySize = 10
     querySize = keySize
     valueSize = 10
-    numBlocks = 2
+    numBlocks = 4
     
     
     # Other parameters

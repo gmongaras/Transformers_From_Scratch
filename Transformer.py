@@ -2,6 +2,7 @@ import torch
 from torch import nn
 from torch import optim
 import numpy as np
+import pandas as pd
 
 
 
@@ -291,6 +292,10 @@ class transformer(nn.Module):
         self.inputVocab = inputVocab
         self.outputVocab = outputVocab
         
+        # Store the input and output vocabulary, but inversed
+        self.inputVocab_inv = {v: k for k, v in self.inputVocab.items()}
+        self.outputVocab_inv = {v: k for k, v in self.outputVocab.items()}
+        
         # Store the input and output vocabulary sizes
         self.inputVocabSize = len(inputVocab.keys())
         self.outputVocabSize = len(outputVocab.keys())
@@ -408,4 +413,21 @@ class transformer(nn.Module):
             outputRes = self.outputBlocks[i](inputRes, outputRes)
         
         
-        # Send the 
+        # Send the output through the linear layer where
+        # the linear layer has the same number of nodes
+        # as the output Vocab
+        linear = nn.Linear(self.inputEmbeddingSize, self.outputVocabSize)(outputRes)
+        softmax = nn.Softmax(dim=-1)(linear)
+        
+        # Get the max softmax values
+        dictVals = torch.argmax(softmax, dim=-1)
+        
+        # Get the decoded sentences
+        output = []
+        for i in range(0, len(x)):
+            output.append([self.outputVocab_inv[i.numpy().item()] for i in dictVals[0]])
+            print(x[i][:10])
+            print(output[i][:10])
+            print()
+        print()
+        
