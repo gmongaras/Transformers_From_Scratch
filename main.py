@@ -1,6 +1,7 @@
 from Transformer import transformer
 import torch
 from torch import nn
+import re
 
 
 
@@ -36,6 +37,7 @@ def train():
     querySize = keySize
     valueSize = 10
     numBlocks = 2
+    alpha = 0.1
     
     
     # Other parameters
@@ -67,8 +69,8 @@ def train():
     
     ### Clean the inputs and outputs ###
     # Split all the sentences into word tensors and clean them
-    inputs = [i.replace("\xa0", " ").split(" ") for i in inputs]
-    outputs = [i.replace("\xa0", " ").split(" ") for i in outputs]
+    inputs = [re.sub(r'[^\w\s]', '', i.replace("\xa0", " ")).lower().split(" ") for i in inputs]
+    outputs = [re.sub(r'[^\w\s]', '', i.replace("\xa0", " ")).lower().split(" ") for i in outputs]
     
     # Get vocabs for the input and output
     inputVocab = createVocab(inputs)
@@ -84,7 +86,7 @@ def train():
     
     ### Training The Model ###
     # Create a transformer model
-    model = transformer(maxSentenceSize, inputVocab, outputVocab, inputEmbeddingSize, outputEmbeddingSize, attention_heads, keySize, querySize, valueSize, numBlocks)
+    model = transformer(maxSentenceSize, inputVocab, outputVocab, inputEmbeddingSize, outputEmbeddingSize, attention_heads, keySize, querySize, valueSize, numBlocks, alpha)
     
     preds = model(inputs, outputs)
     print(preds)
