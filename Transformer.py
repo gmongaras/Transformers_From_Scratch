@@ -74,6 +74,8 @@ class multiHeadAttention(nn.Module):
                 queries = torch.matmul(embeddings2, self.queryWeights.T)
             else:
                 queries = torch.matmul(embeddings, self.queryWeights.T)
+        
+        # Calculate the attention
         return torch.matmul(nn.functional.softmax(torch.matmul(queries, keys.reshape(keys.shape[0], keys.shape[2], keys.shape[1]))/int(np.sqrt(self.keySize)), dim=-1), values)
     
     
@@ -130,7 +132,7 @@ class FeedForward(nn.Module):
             nn.ReLU(),
             nn.Linear(innerDim, outputDim),
             nn.ReLU(),
-        )
+        ).to(device=device)
         
         # The optimizer for the model
         self.optimizer = optim.Adam(self.model.parameters())
@@ -168,7 +170,7 @@ class inputTransformerBlock(nn.Module):
         self.multiHead_Attention = multiHeadAttention(maxSentenceSize, inputVocabSize, outputVocabSize, inputEmbeddingSize, outputEmbeddingSize, attention_heads, keySize, querySize, valueSize)
         
         # Create a fully connected layer
-        self.FullyConnected = FeedForward()
+        self.FullyConnected = FeedForward().to(device=device)
         
         # Optimizer for the model
         self.optimizer = optim.Adam(self.FullyConnected.parameters())
@@ -187,7 +189,7 @@ class inputTransformerBlock(nn.Module):
         
         # Send the attiontion through an add and norm layer
         att_add = att + inputEncoding
-        att_norm = nn.LayerNorm((self.maxSentenceSize, self.valueSize))(att_add.float())
+        att_norm = nn.LayerNorm((self.maxSentenceSize, self.valueSize)).to(device=device)(att_add.float())
         
         # Compute the forward value
         norm_res = att_norm.reshape(att_norm.shape[0], att_norm.shape[2], att_norm.shape[1])
@@ -196,7 +198,7 @@ class inputTransformerBlock(nn.Module):
         
         # Send the fully connected output through an add and norm layer
         FC_add = FC + att_norm
-        FC_norm = nn.LayerNorm((self.maxSentenceSize, self.valueSize))(FC_add)
+        FC_norm = nn.LayerNorm((self.maxSentenceSize, self.valueSize)).to(device=device)(FC_add)
         
         # Return the values
         return FC_norm
@@ -231,7 +233,7 @@ class outputTransformerBlock(nn.Module):
         self.multiHead_Attention2 = multiHeadAttention(maxSentenceSize, inputVocabSize, outputVocabSize, inputEmbeddingSize, outputEmbeddingSize, attention_heads, keySize, querySize, valueSize)
         
         # Create a fully connected layer
-        self.FullyConnected = FeedForward()
+        self.FullyConnected = FeedForward().to(device=device)
         
         # Optimizer for the model
         self.optimizer = optim.Adam(self.FullyConnected.parameters())
@@ -252,14 +254,14 @@ class outputTransformerBlock(nn.Module):
         
         # Send the attiontion through an add and norm layer
         att_add = att + outputEncoding
-        att_norm = nn.LayerNorm((self.maxSentenceSize, self.valueSize))(att_add.float())
+        att_norm = nn.LayerNorm((self.maxSentenceSize, self.valueSize)).to(device=device)(att_add.float())
         
         # Compute the attiontion for the input results and output results
         att2 = self.multiHead_Attention2(inputRes, att_norm)
         
         # Send the new attiontion through an add and norm layer
         att2_add = att2 + outputEncoding
-        att2_norm = nn.LayerNorm((self.maxSentenceSize, self.valueSize))(att2_add.float())
+        att2_norm = nn.LayerNorm((self.maxSentenceSize, self.valueSize)).to(device=device)(att2_add.float())
         
         # Compute the forward value
         norm_res = att2_norm.reshape(att2_norm.shape[0], att2_norm.shape[2], att2_norm.shape[1])
@@ -268,7 +270,7 @@ class outputTransformerBlock(nn.Module):
         
         # Send the fully connected output through an add and norm layer
         FC_add = FC + att2_norm
-        FC_norm = nn.LayerNorm((self.maxSentenceSize, self.valueSize))(FC_add)
+        FC_norm = nn.LayerNorm((self.maxSentenceSize, self.valueSize)).to(device=device)(FC_add)
         
         # Return the values
         return FC_norm
@@ -291,8 +293,9 @@ class transformer(nn.Module):
     #   querySize - The vector size of the query
     #   valueSize - The vector size of the value
     #   numBlocks - The number of transformer blocks
+    #   batchSize - Size of each minibatch
     #   alpha - The larning rate of the model
-    def __init__(self, maxSentenceSize, inputVocab, outputVocab, inputEmbeddingSize, outputEmbeddingSize, attention_heads, keySize, querySize, valueSize, numBlocks, alpha=0.001):
+    def __init__(self, maxSentenceSize, inputVocab, outputVocab, inputEmbeddingSize, outputEmbeddingSize, attention_heads, keySize, querySize, valueSize, numBlocks, batchSize, alpha=0.001):
         super(transformer, self).__init__()
         
         # Store the maximum length
@@ -318,10 +321,10 @@ class transformer(nn.Module):
         self.valueSize = valueSize
         
         # The word embedding layer for the inputs
-        self.input_embedding_layer = nn.Embedding(self.inputVocabSize, inputEmbeddingSize)
+        self.input_embedding_layer = nn.Embedding(self.inputVocabSize, inputEmbeddingSize).to(device=device)
         
         # The word embedding layer for the output
-        self.output_embedding_layer = nn.Embedding(self.outputVocabSize, outputEmbeddingSize)
+        self.output_embedding_layer = nn.Embedding(self.outputVocabSize, outputEmbeddingSize).to(device=device)
         
         # Store the number of blocks
         self.numBlocks = numBlocks
@@ -338,11 +341,13 @@ class transformer(nn.Module):
         
         
         # Output linear layer
-        self.finalLinear = nn.Sequential(nn.Linear(self.inputEmbeddingSize, self.outputVocabSize))
+        self.finalLinear = nn.Sequential(nn.Linear(self.inputEmbeddingSize, self.outputVocabSize)).to(device=device)
         
         # The loss function for the transformer
-        
-        self.loss_funct = torch.nn.CrossEntropyLoss()
+        self.loss_funct = torch.nn.CrossEntropyLoss().to(device=device)
+
+        # Save the batch size for later use
+        self.batchSize = batchSize
         
         # The optimizer for this model
         self.optimizer = optim.Adam(sum(list(list(i.parameters()) for i in self.inputBlocks), []) + sum(list(list(j.parameters()) for j in self.outputBlocks), []) + list(self.finalLinear.parameters()) + list(self.input_embedding_layer.parameters()) + list(self.output_embedding_layer.parameters()), lr=alpha)
@@ -397,7 +402,7 @@ class transformer(nn.Module):
             embedding = self.embedWords(sentence, "Input")
             
             # pad the array with "PAD" values.
-            embedding = torch.tensor(np.pad(embedding.numpy(), ((0, self.maxSentenceSize - embedding.shape[0]), (0, 0)), mode='constant', constant_values=max(self.inputVocabSize, self.outputVocabSize)+1), requires_grad=True, device=device)
+            embedding = torch.tensor(np.pad(embedding.cpu().numpy(), ((0, self.maxSentenceSize - embedding.shape[0]), (0, 0)), mode='constant', constant_values=max(self.inputVocabSize, self.outputVocabSize)+1), requires_grad=True, device=device)
             
             # Get a poitional encoding vector which is the same
             # size as the sentence embedding
@@ -424,7 +429,7 @@ class transformer(nn.Module):
             embedding = self.embedWords(sentence, "Output")
             
             # pad the array with "PAD" values.
-            embedding = torch.tensor(np.pad(embedding.numpy(), ((0, self.maxSentenceSize - embedding.shape[0]), (0, 0)), mode='constant', constant_values=self.outputVocabSize+1), requires_grad=True, device=device)
+            embedding = torch.tensor(np.pad(embedding.cpu().numpy(), ((0, self.maxSentenceSize - embedding.shape[0]), (0, 0)), mode='constant', constant_values=self.outputVocabSize+1), requires_grad=True, device=device)
             
             # Get a poitional encoding vector which is the same
             # size as the sentence embedding
@@ -474,63 +479,82 @@ class transformer(nn.Module):
     #   x - The batch of sentences to translate
     #   Y - The batch of sentences to translate to
     def forward(self, x, Y):
+        # Split the data into batches
+        slices = [self.batchSize*i for i in range(1, int(len(x)/self.batchSize)+1)]+[(int(len(x)/self.batchSize)*self.batchSize)+len(x)%self.batchSize]
+        x_batches = np.split(np.array(x), slices)[:-1]
+        Y_batches = np.split(np.array(Y), slices)[:-1]
+
         # Iterate and update the model
-        for i in range(0, 100):
-            # Send the words through the word embedding layer
-            in_embeddings = self.embedInputs(x)
-            
-            # Send the outputs through the word embedding layer without
-            # positional encodings
-            out_embeddings_NoPosEnc = self.embedOutputs_NoPosEnc(Y)
-            
-            # Send the outputs through the word embedding layer
-            out_embeddings = self.embedOutputs(Y)
-            
-            # Test data
-            inputRes = in_embeddings
-            outputRes = out_embeddings
-            
-            # Send the embeddings through each layer
-            for i in range(0, int(self.numBlocks/2)):
-                # Send the inputs through the input block
-                inputRes = self.inputBlocks[i](inputRes)
+        for i in range(0, 1000):
+            # Total loss of all batches
+            totalLoss = 0
+
+            # Iterate over all batches
+            for batch_num in range(0, len(x_batches)):
+                # Store the batch data
+                x_sub = x_batches[batch_num]
+                Y_sub = Y_batches[batch_num]
+
+                # Send the words through the word embedding layer
+                in_embeddings = self.embedInputs(x_sub)
                 
-                # Send the output through the output block
-                outputRes = self.outputBlocks[i](inputRes, outputRes)
+                # Send the outputs through the word embedding layer without
+                # positional encodings
+                out_embeddings_NoPosEnc = self.embedOutputs_NoPosEnc(Y_sub)
+                
+                # Send the outputs through the word embedding layer
+                out_embeddings = self.embedOutputs(Y_sub)
+                
+                # Test data
+                inputRes = in_embeddings
+                outputRes = out_embeddings
+                
+                # Send the embeddings through each layer
+                for i in range(0, int(self.numBlocks/2)):
+                    # Send the inputs through the input block
+                    inputRes = self.inputBlocks[i](inputRes)
+                    
+                    # Send the output through the output block
+                    outputRes = self.outputBlocks[i](inputRes, outputRes)
+                
+                
+                # Send the output through the linear layer where
+                # the linear layer has the same number of nodes
+                # as the output Vocab
+                linear = self.finalLinear(outputRes)
+                softmax = nn.Softmax(dim=-1)(linear)
+                
+                # Get the indices of the max softmax values
+                dictVals = torch.argmax(softmax, dim=-1)
+                
+                # Get the decoded sentences
+                output = []
+                for i in range(0, x_sub.shape[0]):
+                    output.append([self.outputVocab_inv[i.cpu().numpy().item()] for i in dictVals[i]])
+                    # print(x[i][:10])
+                    # print(output[i][:10])
+                    # print()
+                
+                # Get the loss
+                loss = []
+                for i in range(0, in_embeddings.shape[0]):
+                    loss.append(self.loss_funct(softmax[i], out_embeddings_NoPosEnc[i]))
+                loss = torch.stack(loss)
+                
+                # sum the loss
+                sum = loss.sum()
+                totalLoss += sum.detach().cpu().numpy().item()
+                
+                # Update the gradients
+                sum.backward(retain_graph=False)
+                
+                # Step the optimizer
+                self.optimizer.step()
+                
+                # Zero the optimizers
+                self.optimizer.zero_grad()
             
-            
-            # Send the output through the linear layer where
-            # the linear layer has the same number of nodes
-            # as the output Vocab
-            linear = self.finalLinear(outputRes)
-            softmax = nn.Softmax(dim=-1)(linear)
-            
-            # Get the indices of the max softmax values
-            dictVals = torch.argmax(softmax, dim=-1)
-            
-            # Get the decoded sentences
-            output = []
-            for i in range(0, len(x)):
-                output.append([self.outputVocab_inv[i.numpy().item()] for i in dictVals[i]])
-                print(x[i][:10])
-                print(output[i][:10])
-                print()
-            
-            # Get the loss
-            loss = []
-            for i in range(0, in_embeddings.shape[0]):
-                loss.append(self.loss_funct(softmax[i], out_embeddings_NoPosEnc[i]))
-            loss = torch.stack(loss)
-            
-            # Average the loss
-            sum = loss.sum()
-            
-            # Update the gradients
-            sum.backward(retain_graph=False)
-            print(sum)
-            
-            # Step the optimizer
-            self.optimizer.step()
-            
-            # Zero the optimizers
-            self.optimizer.zero_grad()
+            # Show the average batch loss
+            print(x[-1])
+            print(output[-1][:10])
+            print(f"Total batch loss: {totalLoss}")
