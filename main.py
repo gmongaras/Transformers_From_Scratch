@@ -46,8 +46,8 @@ def train():
     
     
     # Other variables
-    inputFileName = "data/english_sub.txt"
-    outputFileName = "data/spanish_sub.txt"
+    inputFileName = "data2/english_sub.txt"
+    outputFileName = "data2/spanish_sub.txt"
     
     
     
