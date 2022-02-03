@@ -32,10 +32,10 @@ class multiHeadAttention(nn.Module):
         
         # Randomly create "attention_heads" number of key, value, 
         # and query weights. Each matrix is of shape
-        for i in range(0, attention_heads):
-            self.keyWeights = torch.tensor(np.random.randint(0, max(inputVocabSize, outputVocabSize), size=(inputEmbeddingSize, querySize)), requires_grad=True, dtype=torch.float64)
-            self.valueWeights = torch.tensor(np.random.randint(0, max(inputVocabSize, outputVocabSize), size=(inputEmbeddingSize, keySize)), requires_grad=True, dtype=torch.float64)
-            self.queryWeights = torch.tensor(np.random.randint(0, max(inputVocabSize, outputVocabSize), size=(inputEmbeddingSize, valueSize)), requires_grad=True, dtype=torch.float64)
+        #for i in range(0, attention_heads):
+        self.keyWeights = torch.tensor(np.random.randint(0, max(inputVocabSize, outputVocabSize), size=(inputEmbeddingSize, querySize)), requires_grad=True, dtype=torch.float64)
+        self.valueWeights = torch.tensor(np.random.randint(0, max(inputVocabSize, outputVocabSize), size=(inputEmbeddingSize, keySize)), requires_grad=True, dtype=torch.float64)
+        self.queryWeights = torch.tensor(np.random.randint(0, max(inputVocabSize, outputVocabSize), size=(inputEmbeddingSize, valueSize)), requires_grad=True, dtype=torch.float64)
         
         # Create the weight matrix to convert the multi-head attention
         # to a single usable. The weight matrix is of the following
@@ -169,6 +169,9 @@ class inputTransformerBlock(nn.Module):
         
         # Create a fully connected layer
         self.FullyConnected = FeedForward()
+        
+        # Optimizer for the model
+        self.optimizer = optim.Adam(self.FullyConnected.parameters())
     
     
     # Get the transformer encodings for the inputs
@@ -221,11 +224,17 @@ class outputTransformerBlock(nn.Module):
         self.maxSentenceSize = maxSentenceSize
         self.valueSize = valueSize
         
-        # Create the multi-head attention layer
-        self.multiHead_Attention = multiHeadAttention(maxSentenceSize, inputVocabSize, outputVocabSize, inputEmbeddingSize, outputEmbeddingSize, attention_heads, keySize, querySize, valueSize)
+        # Create the first multi-head attention layer
+        self.multiHead_Attention1 = multiHeadAttention(maxSentenceSize, inputVocabSize, outputVocabSize, inputEmbeddingSize, outputEmbeddingSize, attention_heads, keySize, querySize, valueSize)
+        
+        # Create the second multi-head attention layer
+        self.multiHead_Attention2 = multiHeadAttention(maxSentenceSize, inputVocabSize, outputVocabSize, inputEmbeddingSize, outputEmbeddingSize, attention_heads, keySize, querySize, valueSize)
         
         # Create a fully connected layer
         self.FullyConnected = FeedForward()
+        
+        # Optimizer for the model
+        self.optimizer = optim.Adam(self.FullyConnected.parameters())
     
     
     # Get the transformer encodings for the output
@@ -239,14 +248,14 @@ class outputTransformerBlock(nn.Module):
     #             output transformer block
     def forward(self, inputRes, outputEncoding):
         # Compute the multi-head attention for the outputs
-        att = self.multiHead_Attention(outputEncoding)
+        att = self.multiHead_Attention1(outputEncoding)
         
         # Send the attiontion through an add and norm layer
         att_add = att + outputEncoding
         att_norm = nn.LayerNorm((self.maxSentenceSize, self.valueSize))(att_add.float())
         
         # Compute the attiontion for the input results and output results
-        att2 = self.multiHead_Attention(inputRes, att_norm)
+        att2 = self.multiHead_Attention2(inputRes, att_norm)
         
         # Send the new attiontion through an add and norm layer
         att2_add = att2 + outputEncoding
@@ -282,7 +291,8 @@ class transformer(nn.Module):
     #   querySize - The vector size of the query
     #   valueSize - The vector size of the value
     #   numBlocks - The number of transformer blocks
-    def __init__(self, maxSentenceSize, inputVocab, outputVocab, inputEmbeddingSize, outputEmbeddingSize, attention_heads, keySize, querySize, valueSize, numBlocks):
+    #   alpha - The larning rate of the model
+    def __init__(self, maxSentenceSize, inputVocab, outputVocab, inputEmbeddingSize, outputEmbeddingSize, attention_heads, keySize, querySize, valueSize, numBlocks, alpha=0.001):
         super(transformer, self).__init__()
         
         # Store the maximum length
@@ -325,6 +335,16 @@ class transformer(nn.Module):
         self.outputBlocks = []
         for i in range(0, int(numBlocks/2)):
             self.outputBlocks.append(outputTransformerBlock(maxSentenceSize, self.inputVocabSize, self.outputVocabSize, inputEmbeddingSize, outputEmbeddingSize, attention_heads, keySize, querySize, valueSize))
+        
+        
+        # Output linear layer
+        self.finalLinear = nn.Sequential(nn.Linear(self.inputEmbeddingSize, self.outputVocabSize))
+        
+        # The optimizer for this model
+        #self.optimizer = optim.Adam(self.parameters(), lr=alpha)
+        #self.optimizer = optim.Adam([self.parameters()]+[i for i.FullyConnected.parameters() in self.inputBlocks]+[i for i.multiHead_Attention.keyWeights in self.inputBlocks], lr=alpha)
+        self.optimizer = optim.Adam(sum(list(list(i.parameters()) for i in self.inputBlocks), []) + sum(list(list(j.parameters()) for j in self.outputBlocks), []) + list(self.finalLinear.parameters()) + list(self.input_embedding_layer.parameters()) + list(self.output_embedding_layer.parameters()), lr=alpha)
+
     
     
     
@@ -358,16 +378,16 @@ class transformer(nn.Module):
             words_num = torch.tensor(words_num, requires_grad=False)
             
             # Embed the words
-            embeddings = self.input_embedding_layer(words_num).detach()
+            embeddings = self.output_embedding_layer(words_num).detach()
         
         # Return the embeddings
         return embeddings
 
     
-    # Embed a batch of sentences to a batch of word embeddings
+    # Embed a batch of input sentences to a batch of word embeddings
     # Inputs:
-    #   batch - The batch of sentences to embed
-    def embedBatch(self, batch):
+    #   batch - The batch of input sentences to embed
+    def embedInputs(self, batch):
         # Send the words through the word embedding layer
         embeddings = []
         for sentence in batch:
@@ -375,19 +395,90 @@ class transformer(nn.Module):
             embedding = self.embedWords(sentence, "Input")
             
             # pad the array with "PAD" values.
-            embedding = torch.tensor(np.pad(embedding.numpy(), ((0, self.maxSentenceSize - embedding.shape[0]), (0, 0)), mode='constant', constant_values=max(self.inputVocabSize, self.outputVocabSize)+1), requires_grad=False)
+            embedding = torch.tensor(np.pad(embedding.numpy(), ((0, self.maxSentenceSize - embedding.shape[0]), (0, 0)), mode='constant', constant_values=max(self.inputVocabSize, self.outputVocabSize)+1), requires_grad=True)
             
             # Get a poitional encoding vector which is the same
             # size as the sentence embedding
-            posEnc = np.array([[np.sin(i/np.power(10000, (2*embedding[i].shape[0])/self.inputEmbeddingSize))] if (i%2 == 0) else [np.cos(i/np.power(10000, (2*embedding[i].shape[0])/self.inputEmbeddingSize))] for i in range(0, embedding.shape[0])])
+            posEnc = torch.tensor([[np.sin(i/np.power(10000, (2*embedding[i].shape[0])/self.inputEmbeddingSize))] if (i%2 == 0) else [np.cos(i/np.power(10000, (2*embedding[i].shape[0])/self.inputEmbeddingSize))] for i in range(0, embedding.shape[0])])
             
             # Apply positional encodings to the embedding
-            embedding += posEnc
+            embedding_enc = embedding + posEnc
             
             # Add the embedding to the embeddings array
-            embeddings.append(embedding)
+            embeddings.append(embedding_enc)
         
         # Return the embeddings
+        return torch.stack(embeddings)
+    
+    
+    # Embed a batch of output sentences to a batch of word embeddings
+    # Inputs:
+    #   batch - The batch of output sentences to embed
+    def embedOutputs(self, batch):
+        # Send the words through the word embedding layer
+        embeddings = []
+        for sentence in batch:
+            # Get the embedding
+            embedding = self.embedWords(sentence, "Output")
+            
+            # pad the array with "PAD" values.
+            embedding = torch.tensor(np.pad(embedding.numpy(), ((0, self.maxSentenceSize - embedding.shape[0]), (0, 0)), mode='constant', constant_values=self.outputVocabSize+1), requires_grad=True)
+            
+            # Get a poitional encoding vector which is the same
+            # size as the sentence embedding
+            posEnc = torch.tensor([[np.sin(i/np.power(10000, (2*embedding[i].shape[0])/self.outputEmbeddingSize))] if (i%2 == 0) else [np.cos(i/np.power(10000, (2*embedding[i].shape[0])/self.outputEmbeddingSize))] for i in range(0, embedding.shape[0])])
+            
+            # Apply positional encodings to the embedding
+            embedding_enc = embedding + posEnc
+            
+            # Add the embedding to the embeddings array
+            embeddings.append(embedding_enc)
+        
+        # Return the embeddings
+        return torch.stack(embeddings)
+    
+    
+    # Embed a batch of output sentences to a batch of word embeddings
+    # without position encodings
+    # Inputs:
+    #   batch - The batch of output sentences to embed
+    def embedOutputs_NoPosEnc(self, batch):
+        # Send the words through the word embedding layer
+        embeddings = []
+        for sentence in batch:
+            # The sentence embedding
+            embedding = []
+            
+            # Iterate over all words in the batch
+            for word in range(0, self.maxSentenceSize):
+                # If the word exists, encode the word
+                if word < len(sentence):
+                    embedding.append(self.outputVocab[sentence[word]])
+                    # continue
+                    # # Create an array of zeros
+                    # arr = torch.zeros(self.outputVocabSize)
+
+                    # # Change the word embedding value to a 1
+                    # arr[self.outputVocab[sentence[word]]] = 1
+
+                    # embedding.append(arr)
+                
+                # If the word does not exist, encode the word as a padding character
+                else:
+                    embedding.append(self.outputVocabSize-1)
+                    # continue
+                    # # Create an array of zeros
+                    # arr = torch.zeros(self.outputVocabSize)
+
+                    # # Change the word embedding value to a 1
+                    # arr[self.outputVocabSize-1] = 1
+
+                    # embedding.append(arr)
+            
+            # Add the embedding to the embeddings
+            embeddings.append(torch.tensor(embedding))
+            #embeddings.append(torch.stack(embedding))
+        
         return torch.stack(embeddings)
     
     
@@ -396,38 +487,83 @@ class transformer(nn.Module):
     # Translate the given sentences
     # Input:
     #   x - The batch of sentences to translate
-    def forward(self, x):
-        # Send the words through the word embedding layer
-        embeddings = self.embedBatch(x)
-        
-        # Test data
-        inputRes = embeddings
-        outputRes = embeddings
-        
-        # Send the embeddings through each layer
-        for i in range(0, int(self.numBlocks/2)):
-            # Send the inputs through the input block
-            inputRes = self.inputBlocks[i](inputRes)
+    #   Y - The batch of sentences to translate to
+    def forward(self, x, Y):
+        # Iterate and update the model
+        for i in range(0, 100):
+            # Send the words through the word embedding layer
+            in_embeddings = self.embedInputs(x)
             
-            # Send the output through the output block
-            outputRes = self.outputBlocks[i](inputRes, outputRes)
-        
-        
-        # Send the output through the linear layer where
-        # the linear layer has the same number of nodes
-        # as the output Vocab
-        linear = nn.Linear(self.inputEmbeddingSize, self.outputVocabSize)(outputRes)
-        softmax = nn.Softmax(dim=-1)(linear)
-        
-        # Get the max softmax values
-        dictVals = torch.argmax(softmax, dim=-1)
-        
-        # Get the decoded sentences
-        output = []
-        for i in range(0, len(x)):
-            output.append([self.outputVocab_inv[i.numpy().item()] for i in dictVals[0]])
-            print(x[i][:10])
-            print(output[i][:10])
-            print()
-        print()
-        
+            # Send the outputs through the word embedding layer without
+            # positional encodings
+            out_embeddings_NoPosEnc = self.embedOutputs_NoPosEnc(Y)
+            
+            # Send the outputs through the word embedding layer
+            out_embeddings = self.embedOutputs(Y)
+            
+            # Test data
+            inputRes = in_embeddings
+            outputRes = out_embeddings
+            
+            # Send the embeddings through each layer
+            for i in range(0, int(self.numBlocks/2)):
+                # Send the inputs through the input block
+                inputRes = self.inputBlocks[i](inputRes)
+                
+                # Send the output through the output block
+                outputRes = self.outputBlocks[i](inputRes, outputRes)
+            
+            
+            # Send the output through the linear layer where
+            # the linear layer has the same number of nodes
+            # as the output Vocab
+            linear = self.finalLinear(outputRes)
+            softmax = nn.Softmax(dim=-1)(linear)
+            
+            # Get the indices of the max softmax values
+            dictVals = torch.argmax(softmax, dim=-1)
+            
+            # Get the decoded sentences
+            output = []
+            for i in range(0, len(x)):
+                output.append([self.outputVocab_inv[i.numpy().item()] for i in dictVals[0]])
+                print(x[i][:10])
+                print(output[i][:10])
+                print()
+            
+            # Get the loss
+            loss = []
+            for i in range(0, in_embeddings.shape[0]):
+                loss.append(torch.nn.CrossEntropyLoss()(softmax[i], out_embeddings_NoPosEnc[i]))
+            loss = torch.stack(loss)
+            
+            # Average the loss
+            avg = loss.mean()
+            
+            # Update the gradients
+            avg.backward(retain_graph=False)
+            print(avg)
+            
+            # Step the optimizers
+            # for b in self.inputBlocks:
+            #     b.optimizer.step()
+            #     b.FullyConnected.optimizer.step()
+            #     b.multiHead_Attention.optimizer.step()
+            # for b in self.outputBlocks:
+            #     b.optimizer.step()
+            #     b.FullyConnected.optimizer.step()
+            #     b.multiHead_Attention1.optimizer.step()
+            #     b.multiHead_Attention2.optimizer.step()
+            self.optimizer.step()
+            
+            # Zero the optimizers
+            # for b in self.inputBlocks:
+            #     b.optimizer.zero_grad()
+            #     b.FullyConnected.optimizer.zero_grad()
+            #     b.multiHead_Attention.optimizer.zero_grad()
+            # for b in self.outputBlocks:
+            #     b.optimizer.zero_grad()
+            #     b.FullyConnected.optimizer.zero_grad()
+            #     b.multiHead_Attention1.optimizer.zero_grad()
+            #     b.multiHead_Attention2.optimizer.zero_grad()
+            self.optimizer.zero_grad()
