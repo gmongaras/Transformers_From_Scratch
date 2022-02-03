@@ -33,9 +33,9 @@ def train():
     inputEmbeddingSize = 10
     outputEmbeddingSize = 10
     attention_heads = 8
-    keySize = 10
+    keySize = 64
     querySize = keySize
-    valueSize = 10
+    valueSize = 64
     numBlocks = 2
     alpha = 0.001
     batchSize = 10
@@ -47,8 +47,10 @@ def train():
     
     
     # Other variables
-    inputFileName = "data2/english_sub.txt"
-    outputFileName = "data2/spanish_sub.txt"
+    #inputFileName = "data2/english_sub.txt"
+    #outputFileName = "data2/spanish_sub.txt"
+    inputFileName = "data/english.txt"
+    outputFileName = "data/spanish.txt"
     
     
     

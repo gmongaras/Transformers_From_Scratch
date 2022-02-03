@@ -189,7 +189,7 @@ class inputTransformerBlock(nn.Module):
         
         # Send the attiontion through an add and norm layer
         att_add = att + inputEncoding
-        att_norm = nn.LayerNorm((self.maxSentenceSize, self.valueSize)).to(device=device)(att_add.float())
+        att_norm = nn.LayerNorm((self.maxSentenceSize, inputEncoding.shape[-1])).to(device=device)(att_add.float())
         
         # Compute the forward value
         norm_res = att_norm.reshape(att_norm.shape[0], att_norm.shape[2], att_norm.shape[1])
@@ -198,7 +198,7 @@ class inputTransformerBlock(nn.Module):
         
         # Send the fully connected output through an add and norm layer
         FC_add = FC + att_norm
-        FC_norm = nn.LayerNorm((self.maxSentenceSize, self.valueSize)).to(device=device)(FC_add)
+        FC_norm = nn.LayerNorm((self.maxSentenceSize, inputEncoding.shape[-1])).to(device=device)(FC_add)
         
         # Return the values
         return FC_norm
@@ -254,14 +254,14 @@ class outputTransformerBlock(nn.Module):
         
         # Send the attiontion through an add and norm layer
         att_add = att + outputEncoding
-        att_norm = nn.LayerNorm((self.maxSentenceSize, self.valueSize)).to(device=device)(att_add.float())
+        att_norm = nn.LayerNorm((self.maxSentenceSize, outputEncoding.shape[-1])).to(device=device)(att_add.float())
         
         # Compute the attiontion for the input results and output results
         att2 = self.multiHead_Attention2(inputRes, att_norm)
         
         # Send the new attiontion through an add and norm layer
         att2_add = att2 + outputEncoding
-        att2_norm = nn.LayerNorm((self.maxSentenceSize, self.valueSize)).to(device=device)(att2_add.float())
+        att2_norm = nn.LayerNorm((self.maxSentenceSize, outputEncoding.shape[-1])).to(device=device)(att2_add.float())
         
         # Compute the forward value
         norm_res = att2_norm.reshape(att2_norm.shape[0], att2_norm.shape[2], att2_norm.shape[1])
@@ -270,7 +270,7 @@ class outputTransformerBlock(nn.Module):
         
         # Send the fully connected output through an add and norm layer
         FC_add = FC + att2_norm
-        FC_norm = nn.LayerNorm((self.maxSentenceSize, self.valueSize)).to(device=device)(FC_add)
+        FC_norm = nn.LayerNorm((self.maxSentenceSize, outputEncoding.shape[-1])).to(device=device)(FC_add)
         
         # Return the values
         return FC_norm
@@ -555,6 +555,6 @@ class transformer(nn.Module):
                 self.optimizer.zero_grad()
             
             # Show the average batch loss
-            print(x[-1])
+            print(x[-1][:10])
             print(output[-1][:10])
             print(f"Total batch loss: {totalLoss}")
