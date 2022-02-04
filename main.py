@@ -5,6 +5,10 @@ import re
 
 
 
+# Add <START> and <END> encodings to the
+
+
+
 # Create a vocabulary given a 2-dimensional array of words
 def createVocab(input):
     # The vocab to add items to
@@ -20,6 +24,9 @@ def createVocab(input):
             if word not in vocab.keys():
                 vocab.update({word: numWords})
                 numWords += 1
+    
+    # Add a PAD character
+    vocab["<PAD>"] = len(vocab)
     
     # Return the vocab
     return vocab

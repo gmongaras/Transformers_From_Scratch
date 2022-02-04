@@ -518,11 +518,15 @@ class transformer(nn.Module):
                 inputRes = in_embeddings
                 outputRes = out_embeddings
                 
-                # Send the embeddings through each layer
+                # Send the embeddings through the input layer
                 for i in range(0, int(self.numBlocks/2)):
                     # Send the inputs through the input block
                     inputRes = self.inputBlocks[i](inputRes)
                     
+                # While the final character is not a <END>, create
+                # the new sentence
+                outputRes = torch.tensor([])
+                while (outputRes != self.outputVocabSize):
                     # Send the output through the output block
                     outputRes = self.outputBlocks[i](inputRes, outputRes)
                 
@@ -539,7 +543,7 @@ class transformer(nn.Module):
                 # Get the decoded sentences
                 output = []
                 for i in range(0, x_sub.shape[0]):
-                    output.append([self.outputVocab_inv[i.cpu().numpy().item()] for i in dictVals[i]])
+                    output.append([self.outputVocab_inv[j.cpu().numpy().item()] for j in dictVals[i]])
                     # print(x[i][:10])
                     # print(output[i][:10])
                     # print()
@@ -550,7 +554,7 @@ class transformer(nn.Module):
                 # Get the loss
                 loss = []
                 for i in range(0, in_embeddings.shape[0]):
-                    loss.append(self.CrossEntropyLoss(out_embeddings_NoPosEnc_oneHot[i], softmax[i]).sum())
+                    loss.append(self.CrossEntropyLoss(out_embeddings_NoPosEnc_oneHot[i], softmax[i]).mean())
                 loss = torch.stack(loss)
                 
                 # sum the loss
@@ -569,4 +573,5 @@ class transformer(nn.Module):
             # Show the total batch loss
             print(x[-1][:10])
             print(output[-1][:10])
+            print(dictVals[-1][:10])
             print(f"Total batch loss: {totalLoss}")
