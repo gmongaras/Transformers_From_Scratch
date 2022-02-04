@@ -344,7 +344,7 @@ class transformer(nn.Module):
         self.finalLinear = nn.Sequential(nn.Linear(self.inputEmbeddingSize, self.outputVocabSize)).to(device=device)
         
         # The loss function for the transformer
-        self.loss_funct = torch.nn.CrossEntropyLoss().to(device=device)
+        #self.loss_funct = torch.nn.CrossEntropyLoss().to(device=device)
 
         # Save the batch size for later use
         self.batchSize = batchSize
@@ -470,6 +470,15 @@ class transformer(nn.Module):
             embeddings.append(torch.tensor(embedding, requires_grad=False, device=device))
         
         return torch.stack(embeddings)
+
+    
+    
+    # The Cross entropy loss function
+    # Inputs:
+    #   p - The probabilities we want (Probably a one-hot vector)
+    #   q - The probabilities the model predicted
+    def CrossEntropyLoss(self, p, q):
+        return -torch.sum(p*torch.log(q) + (1-p)*torch.log(1-q), dim=-1)
     
     
     
@@ -535,10 +544,13 @@ class transformer(nn.Module):
                     # print(output[i][:10])
                     # print()
                 
+                # One hot encode the output embeddings
+                out_embeddings_NoPosEnc_oneHot = nn.functional.one_hot(out_embeddings_NoPosEnc, num_classes=softmax.shape[-1])
+                
                 # Get the loss
                 loss = []
                 for i in range(0, in_embeddings.shape[0]):
-                    loss.append(self.loss_funct(softmax[i], out_embeddings_NoPosEnc[i]))
+                    loss.append(self.CrossEntropyLoss(out_embeddings_NoPosEnc_oneHot[i], softmax[i]).sum())
                 loss = torch.stack(loss)
                 
                 # sum the loss
@@ -554,7 +566,7 @@ class transformer(nn.Module):
                 # Zero the optimizers
                 self.optimizer.zero_grad()
             
-            # Show the average batch loss
+            # Show the total batch loss
             print(x[-1][:10])
             print(output[-1][:10])
             print(f"Total batch loss: {totalLoss}")

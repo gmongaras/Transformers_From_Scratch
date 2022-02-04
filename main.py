@@ -47,10 +47,8 @@ def train():
     
     
     # Other variables
-    #inputFileName = "data2/english_sub.txt"
-    #outputFileName = "data2/spanish_sub.txt"
-    inputFileName = "data/english.txt"
-    outputFileName = "data/spanish.txt"
+    inputFileName = "data2/english_sub.txt"
+    outputFileName = "data2/spanish_sub.txt"
     
     
     
@@ -91,8 +89,7 @@ def train():
     # Create a transformer model
     model = transformer(maxSentenceSize, inputVocab, outputVocab, inputEmbeddingSize, outputEmbeddingSize, attention_heads, keySize, querySize, valueSize, numBlocks, batchSize, alpha)
     
-    preds = model(inputs, outputs)
-    print(preds)
+    model(inputs, outputs)
 
 
 
