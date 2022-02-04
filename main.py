@@ -5,12 +5,18 @@ import re
 
 
 
-# Add <START> and <END> encodings to the
+# Add <START> and <END> stop words to the sentences
+def addSTARTAndEND(inp):
+    # Iterate over all sentences
+    for i in range(0, len(inp)):
+        inp[i] = ["<START>"] + inp[i] + ["<END>"]
+    
+    return inp
 
 
 
 # Create a vocabulary given a 2-dimensional array of words
-def createVocab(input):
+def createVocab(inp):
     # The vocab to add items to
     vocab = {}
     
@@ -18,15 +24,17 @@ def createVocab(input):
     numWords = 0
     
     # Iterate over all words in the 2-dimensional array
-    for i in input:
+    for i in inp:
         for word in i:
             # If the word is not in the vocab, add it
             if word not in vocab.keys():
                 vocab.update({word: numWords})
                 numWords += 1
     
-    # Add a PAD character
+    # Add a the special "stop words"
     vocab["<PAD>"] = len(vocab)
+    vocab["<START>"] = len(vocab)
+    vocab["<END>"] = len(vocab)
     
     # Return the vocab
     return vocab
@@ -79,6 +87,10 @@ def train():
     # Split all the sentences into word tensors and clean them
     inputs = [re.sub(r'[^\w\s]', '', i.replace("\xa0", " ")).lower().split(" ") for i in inputs]
     outputs = [re.sub(r'[^\w\s]', '', i.replace("\xa0", " ")).lower().split(" ") for i in outputs]
+    
+    # Add <START> and <END> stop words to the sentence
+    inputs = addSTARTAndEND(inputs)
+    outputs = addSTARTAndEND(outputs)
     
     # Get vocabs for the input and output
     inputVocab = createVocab(inputs)
