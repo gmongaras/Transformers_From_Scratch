@@ -679,7 +679,10 @@ class transformer(nn.Module):
                 self.optimizer.zero_grad()
             
             # Show the total batch loss
+            print(f"Step #{iter}")
             print(f"English: {x[-1][:10]}")
-            print(f"Spanish: {output[-1][:10]}")
-            print(f"Spanish prediction: {dictVals[-1][:10]}")
+            print(f"Spanish: {Y[-1][:10]}")
+            print(f"Spanish Prediction: {output[-1][:10]}")
+            #print(f"Spanish prediction Values: {dictVals[-1][:10]}")
             print(f"Total batch loss: {totalLoss}")
+            print()
