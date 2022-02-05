@@ -31,10 +31,8 @@ def createVocab(inp):
                 vocab.update({word: numWords})
                 numWords += 1
     
-    # Add a the special "stop words"
-    vocab["<PAD>"] = len(vocab)
-    vocab["<START>"] = len(vocab)
-    vocab["<END>"] = len(vocab)
+    # Add a the special <PAD> character to the vocab
+    vocab.update({"<PAD>": numWords})
     
     # Return the vocab
     return vocab

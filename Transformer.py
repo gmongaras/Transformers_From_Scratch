@@ -443,6 +443,42 @@ class transformer(nn.Module):
         
         # Return the embeddings
         return torch.stack(embeddings)
+
+    
+    
+    # Embed a batch of output sentences to a batch of word embeddings
+    # Inputs:
+    #   batch - The batch of output sentences to embed
+    #   currentIndex - The current index of the last word
+    def embedOutputs_OnlyPosEnc(self, batch, currentIndex):
+        # Send the words through the word embedding layer
+        embeddings = []
+        for sentence in batch:
+            # Get the embedding
+            embedding = sentence
+            #embedding = self.embedWords(sentence, "Output")
+            
+            # pad the array with "PAD" values.
+            paddedEmbedding = [t for t in embedding[:currentIndex]]
+            for i in range(0, self.maxSentenceSize - embedding.shape[0]):
+                paddedEmbedding.append(self.embedWords(["<PAD>"], "Output")[0])
+            paddedEmbedding = torch.stack(paddedEmbedding)
+            
+            # Get a poitional encoding vector which is the same
+            # size as the sentence embedding
+            idx = paddedEmbedding.shape[0]-1
+            #posEnc =  torch.tensor([np.sin(idx/np.power(10000, (2*paddedEmbedding[idx].shape[0])/self.outputEmbeddingSize))] if (idx%2 == 0) else [np.cos(idx/np.power(10000, (2*paddedEmbedding[idx].shape[0])/self.outputEmbeddingSize))], dtype=torch.float, requires_grad=True, device=device)
+            posEnc =  torch.tensor([[0] if i != paddedEmbedding.shape[0]-1 else [np.sin(idx/np.power(10000, (2*paddedEmbedding[idx].shape[0])/self.outputEmbeddingSize))] if (idx%2 == 0) else [np.cos(idx/np.power(10000, (2*paddedEmbedding[idx].shape[0])/self.outputEmbeddingSize))] for i in range(0, paddedEmbedding.shape[0])], dtype=torch.float, requires_grad=True, device=device)
+            #posEnc = torch.tensor([[0] if i == embedding.shape[0]-1 else [np.sin(i/np.power(10000, (2*embedding[i].shape[0])/self.outputEmbeddingSize))] if (i%2 == 0) else [np.cos(i/np.power(10000, (2*embedding[i].shape[0])/self.outputEmbeddingSize))] for i in range(0, embedding.shape[0])], dtype=torch.float, requires_grad=True, device=device)
+            
+            # Apply positional encodings to the embedding
+            embedding_enc = paddedEmbedding + posEnc
+            
+            # Add the embedding to the embeddings array
+            embeddings.append(embedding_enc)
+        
+        # Return the embeddings
+        return torch.stack(embeddings)
     
     
     # Embed a batch of output sentences to a batch of word embeddings
@@ -494,7 +530,7 @@ class transformer(nn.Module):
         Y_batches = np.split(np.array(Y), slices)[:-1]
 
         # Iterate and update the model
-        for i in range(0, 1000):
+        for iter in range(0, 1000):
             # Total loss of all batches
             totalLoss = 0
 
@@ -507,35 +543,90 @@ class transformer(nn.Module):
                 # Send the words through the word embedding layer
                 in_embeddings = self.embedInputs(x_sub)
                 
-                # Send the outputs through the word embedding layer without
-                # positional encodings
-                out_embeddings_NoPosEnc = self.embedOutputs_NoPosEnc(Y_sub)
-                
-                # Send the outputs through the word embedding layer
-                out_embeddings = self.embedOutputs(Y_sub)
-                
                 # Test data
-                inputRes = in_embeddings
-                outputRes = out_embeddings
+                #inputRes = in_embeddings
+                #outputRes = out_embeddings
                 
                 # Send the embeddings through the input layer
+                inputRes = in_embeddings
                 for i in range(0, int(self.numBlocks/2)):
                     # Send the inputs through the input block
                     inputRes = self.inputBlocks[i](inputRes)
                     
-                # While the final character is not a <END>, create
+                    
+                    
+                    
+                # Create the initial sentences to get output from
+                output_init = []
+                for i in range(0, len(Y_sub)):
+                    output_init.append(torch.tensor([]))
+                
+                
+                outputMatrix = torch.stack(output_init)
+                newWords = ["<START>" for i in range(0, slices[batch_num])]
+                endEncoding = self.embedWords(["<END>"], "Output")[0]
+                wordIndex = 1
+                specialWords = ["<PAD>", "<START>", "<END>"]
+                endVector = [False for i in range(0, slices[batch_num])]
+                allEnd = False
+                
+                    
+                # While the final character is not a <END> and the
+                # max sentence length has not been reached, create
                 # the new sentence
-                outputRes = torch.tensor([])
-                while (outputRes != self.outputVocabSize):
-                    # Send the output through the output block
-                    outputRes = self.outputBlocks[i](inputRes, outputRes)
+                #outputRes = torch.tensor([])
+                while (outputMatrix.shape[0] != self.outputVocabSize and allEnd == False):
+                    # Add the new word to the arrays
+                    newOutputMatrix = []
+                    for i in range(0, len(Y_sub)):
+                        newOutputMatrix.append(torch.cat((outputMatrix[i][:wordIndex-1], torch.tensor(self.embedWords([newWords[i]], "Output"), device=device, requires_grad=True, dtype=torch.float))))
+                        #newOutputMatrix.append(torch.tensor(self.embedWords([newWords[i]], "Output"), device=device, requires_grad=True, dtype=torch.float))
+                    outputMatrix = torch.stack(newOutputMatrix)
+                    
+                    # Send the outputs through the word embedding layer
+                    outputMatrix = self.embedOutputs_OnlyPosEnc(outputMatrix, wordIndex)
+                    
+                    # Send the output through the output blocks
+                    for block in range(0, int(self.numBlocks/2)):
+                        outputMatrix = self.outputBlocks[block](inputRes, outputMatrix)
+                        
+                    # Send the output through the linear layer where
+                    # the linear layer has the same number of nodes
+                    # as the output Vocab
+                    linear = self.finalLinear(outputMatrix)
+                    softmax = nn.Softmax(dim=-1)(linear)
+                    
+                    # Get the indices of the max softmax values
+                    dictVals = torch.argmax(softmax, dim=-1)
+                    
+                    # Get the new word indices
+                    wordIdx = dictVals[:, wordIndex]
+                    
+                    # Get the new words
+                    newWords = []
+                    for i in range(0, wordIdx.shape[0]):
+                        newWords.append(self.outputVocab_inv[wordIdx[i].item()])
+                        
+                    # Check if any of the new words are special words
+                    for i in range(0, len(newWords)):
+                        if newWords[i] in specialWords:
+                            endVector[i] = True
+                    
+                    # If all values in the end vector are True,
+                    # stop the loop
+                    allEnd = True
+                    for i in range(0, len(newWords)):
+                        if endVector[i] == False:
+                            allEnd = False
+                            break
+                    
+                    # Increase the word index
+                    wordIndex += 1
                 
                 
-                # Send the output through the linear layer where
-                # the linear layer has the same number of nodes
-                # as the output Vocab
-                linear = self.finalLinear(outputRes)
-                softmax = nn.Softmax(dim=-1)(linear)
+                # Send the outputs through the word embedding layer without
+                # positional encodings
+                #out_embeddings_NoPosEnc = self.embedOutputs_NoPosEnc(Y_sub)
                 
                 # Get the indices of the max softmax values
                 dictVals = torch.argmax(softmax, dim=-1)
