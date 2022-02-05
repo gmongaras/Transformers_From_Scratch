@@ -46,9 +46,9 @@ def train():
     inputEmbeddingSize = 10
     outputEmbeddingSize = 10
     attention_heads = 8
-    keySize = 64
+    keySize = 10
     querySize = keySize
-    valueSize = 64
+    valueSize = 10
     numBlocks = 2
     alpha = 0.001
     batchSize = 10

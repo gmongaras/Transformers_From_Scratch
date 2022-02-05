@@ -6,8 +6,8 @@ import pandas as pd
 
 
 device = torch.device('cpu')
-if torch.cuda.is_available():
-    device = torch.device('cuda')
+#if torch.cuda.is_available():
+#    device = torch.device('cuda')
 
 
 class multiHeadAttention(nn.Module):
@@ -170,7 +170,7 @@ class inputTransformerBlock(nn.Module):
         self.multiHead_Attention = multiHeadAttention(maxSentenceSize, inputVocabSize, outputVocabSize, inputEmbeddingSize, outputEmbeddingSize, attention_heads, keySize, querySize, valueSize)
         
         # Create a fully connected layer
-        self.FullyConnected = FeedForward().to(device=device)
+        self.FullyConnected = FeedForward(maxSentenceSize, 2048, maxSentenceSize).to(device=device)
         
         # Optimizer for the model
         self.optimizer = optim.Adam(self.FullyConnected.parameters())
@@ -233,7 +233,7 @@ class outputTransformerBlock(nn.Module):
         self.multiHead_Attention2 = multiHeadAttention(maxSentenceSize, inputVocabSize, outputVocabSize, inputEmbeddingSize, outputEmbeddingSize, attention_heads, keySize, querySize, valueSize)
         
         # Create a fully connected layer
-        self.FullyConnected = FeedForward().to(device=device)
+        self.FullyConnected = FeedForward(maxSentenceSize, 2048, maxSentenceSize).to(device=device)
         
         # Optimizer for the model
         self.optimizer = optim.Adam(self.FullyConnected.parameters())
@@ -559,7 +559,7 @@ class transformer(nn.Module):
                 # Create the initial sentences to get output from
                 output_init = []
                 for i in range(0, len(Y_sub)):
-                    output_init.append(torch.tensor([]))
+                    output_init.append(torch.tensor([], device=device, requires_grad=True))
                 
                 
                 outputMatrix = torch.stack(output_init)
