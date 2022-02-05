@@ -6,8 +6,8 @@ import pandas as pd
 
 
 device = torch.device('cpu')
-#if torch.cuda.is_available():
-#    device = torch.device('cuda')
+if torch.cuda.is_available():
+    device = torch.device('cuda')
 
 
 class multiHeadAttention(nn.Module):
@@ -530,7 +530,7 @@ class transformer(nn.Module):
         Y_batches = np.split(np.array(Y), slices)[:-1]
 
         # Iterate and update the model
-        for iter in range(0, 1000):
+        for iter in range(0, 10000):
             # Total loss of all batches
             totalLoss = 0
 
@@ -566,7 +566,7 @@ class transformer(nn.Module):
                 newWords = ["<START>" for i in range(0, slices[batch_num])]
                 endEncoding = self.embedWords(["<END>"], "Output")[0]
                 wordIndex = 1
-                specialWords = ["<END>"]
+                specialWords = ["<>"]
                 endVector = [False for i in range(0, slices[batch_num])]
                 allEnd = False
                 
@@ -594,6 +594,7 @@ class transformer(nn.Module):
                     # the linear layer has the same number of nodes
                     # as the output Vocab
                     linear = self.finalLinear(outputMatrix)
+                    linear[:, :, -1] = 0 # Don't allow <PAD> to be predicted
                     softmax = nn.Softmax(dim=-1)(linear)
                     
                     # Get the indices of the max softmax values
@@ -623,6 +624,14 @@ class transformer(nn.Module):
                     # Increase the word index
                     wordIndex += 1
                 
+
+                # Add the final words to the output matrix
+                newOutputMatrix = []
+                for i in range(0, len(Y_sub)):
+                    newOutputMatrix.append(torch.cat((outputMatrix[i][:wordIndex-1], torch.tensor(self.embedWords([newWords[i]], "Output"), device=device, requires_grad=True, dtype=torch.float))))
+                    #newOutputMatrix.append(torch.tensor(self.embedWords([newWords[i]], "Output"), device=device, requires_grad=True, dtype=torch.float))
+                outputMatrix = torch.stack(newOutputMatrix)
+                
                 
                 # Send the outputs through the word embedding layer without
                 # positional encodings
@@ -642,10 +651,18 @@ class transformer(nn.Module):
                 # One hot encode the output embeddings
                 out_embeddings_NoPosEnc_oneHot = nn.functional.one_hot(out_embeddings_NoPosEnc, num_classes=softmax.shape[-1])
                 
+                # Get the indices of the last word in each sentence
+                lastWordIdx = [len(Y_sub[i]) for i in range(0, len(Y_sub))]
+
                 # Get the loss
                 loss = []
                 for i in range(0, in_embeddings.shape[0]):
-                    loss.append(self.CrossEntropyLoss(out_embeddings_NoPosEnc_oneHot[i], softmax[i]).mean())
+                    # Split the embeddings and softmax values by the last word indices
+                    # so the loss doesn't count the <PAD> terms
+                    out_embeddings_NoPosEnc_oneHot_sub = out_embeddings_NoPosEnc_oneHot[i][:lastWordIdx[i]]
+                    softmax_sub = softmax[i][:lastWordIdx[i]]
+
+                    loss.append(self.CrossEntropyLoss(out_embeddings_NoPosEnc_oneHot_sub, softmax_sub).mean())
                 loss = torch.stack(loss)
                 
                 # sum the loss
@@ -662,7 +679,7 @@ class transformer(nn.Module):
                 self.optimizer.zero_grad()
             
             # Show the total batch loss
-            print(x[-1][:10])
-            print(output[-1][:10])
-            print(dictVals[-1][:10])
+            print(f"English: {x[-1][:10]}")
+            print(f"Spanish: {output[-1][:10]}")
+            print(f"Spanish prediction: {dictVals[-1][:10]}")
             print(f"Total batch loss: {totalLoss}")
