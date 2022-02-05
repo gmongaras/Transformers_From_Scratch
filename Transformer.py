@@ -188,7 +188,7 @@ class inputTransformerBlock(nn.Module):
         att = self.multiHead_Attention(inputEncoding)
         
         # Send the attiontion through an add and norm layer
-        att_add = att + inputEncoding
+        att_add = att.float() + inputEncoding.float()
         att_norm = nn.LayerNorm((self.maxSentenceSize, inputEncoding.shape[-1])).to(device=device)(att_add.float())
         
         # Compute the forward value
@@ -253,7 +253,7 @@ class outputTransformerBlock(nn.Module):
         att = self.multiHead_Attention1(outputEncoding)
         
         # Send the attiontion through an add and norm layer
-        att_add = att + outputEncoding
+        att_add = att.float() + outputEncoding.float()
         att_norm = nn.LayerNorm((self.maxSentenceSize, outputEncoding.shape[-1])).to(device=device)(att_add.float())
         
         # Compute the attiontion for the input results and output results
