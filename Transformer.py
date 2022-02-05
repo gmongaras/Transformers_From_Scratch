@@ -566,7 +566,7 @@ class transformer(nn.Module):
                 newWords = ["<START>" for i in range(0, slices[batch_num])]
                 endEncoding = self.embedWords(["<END>"], "Output")[0]
                 wordIndex = 1
-                specialWords = ["<PAD>", "<START>", "<END>"]
+                specialWords = ["<END>"]
                 endVector = [False for i in range(0, slices[batch_num])]
                 allEnd = False
                 
@@ -575,7 +575,7 @@ class transformer(nn.Module):
                 # max sentence length has not been reached, create
                 # the new sentence
                 #outputRes = torch.tensor([])
-                while (outputMatrix.shape[0] != self.outputVocabSize and allEnd == False):
+                while (wordIndex <= self.maxSentenceSize and allEnd == False):
                     # Add the new word to the arrays
                     newOutputMatrix = []
                     for i in range(0, len(Y_sub)):
@@ -600,7 +600,7 @@ class transformer(nn.Module):
                     dictVals = torch.argmax(softmax, dim=-1)
                     
                     # Get the new word indices
-                    wordIdx = dictVals[:, wordIndex]
+                    wordIdx = dictVals[:, wordIndex-1]
                     
                     # Get the new words
                     newWords = []
@@ -626,7 +626,7 @@ class transformer(nn.Module):
                 
                 # Send the outputs through the word embedding layer without
                 # positional encodings
-                #out_embeddings_NoPosEnc = self.embedOutputs_NoPosEnc(Y_sub)
+                out_embeddings_NoPosEnc = self.embedOutputs_NoPosEnc(Y_sub)
                 
                 # Get the indices of the max softmax values
                 dictVals = torch.argmax(softmax, dim=-1)
