@@ -43,26 +43,28 @@ def createVocab(inp):
 
 def train():
     # Hyperparameters
-    inputEmbeddingSize = 10
-    outputEmbeddingSize = 10
+    inputEmbeddingSize = 20
+    outputEmbeddingSize = 20
     attention_heads = 8
-    keySize = 10
+    keySize = 64
     querySize = keySize
-    valueSize = 10
+    valueSize = 64
     numBlocks = 2
-    alpha = 0.001
+    alpha = 1
     batchSize = 10
+    warmupSteps = 4000
     
     
     # Other parameters
-    maxSentenceSize = 110
+    maxSentenceSize = 180
     
     
     
     # Other variables
     inputFileName = "data2/english_sub.txt"
     outputFileName = "data2/spanish_sub.txt"
-    
+
+
     
     
     ### Reading The Data ###
@@ -104,7 +106,7 @@ def train():
     
     ### Training The Model ###
     # Create a transformer model
-    model = transformer(maxSentenceSize, inputVocab, outputVocab, inputEmbeddingSize, outputEmbeddingSize, attention_heads, keySize, querySize, valueSize, numBlocks, batchSize, alpha)
+    model = transformer(maxSentenceSize, inputVocab, outputVocab, warmupSteps, inputEmbeddingSize, outputEmbeddingSize, attention_heads, keySize, querySize, valueSize, numBlocks, batchSize, alpha)
     
     model(inputs, outputs)
 

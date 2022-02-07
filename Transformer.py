@@ -295,7 +295,7 @@ class transformer(nn.Module):
     #   numBlocks - The number of transformer blocks
     #   batchSize - Size of each minibatch
     #   alpha - The larning rate of the model
-    def __init__(self, maxSentenceSize, inputVocab, outputVocab, inputEmbeddingSize, outputEmbeddingSize, attention_heads, keySize, querySize, valueSize, numBlocks, batchSize, alpha=0.001):
+    def __init__(self, maxSentenceSize, inputVocab, outputVocab, warmupSteps, inputEmbeddingSize, outputEmbeddingSize, attention_heads, keySize, querySize, valueSize, numBlocks, batchSize, alpha=0.001):
         super(transformer, self).__init__()
         
         # Store the maximum length
@@ -304,6 +304,9 @@ class transformer(nn.Module):
         # Store the input and output vocabulary
         self.inputVocab = inputVocab
         self.outputVocab = outputVocab
+
+	# Save the number of warmup steps
+        self.warmupSteps = warmupSteps
         
         # Store the input and output vocabulary, but inversed
         self.inputVocab_inv = {v: k for k, v in self.inputVocab.items()}
@@ -317,8 +320,10 @@ class transformer(nn.Module):
         self.inputEmbeddingSize = inputEmbeddingSize
         self.outputEmbeddingSize = outputEmbeddingSize
         
-        # Save the value size
+        # Save the K, V, Q  sizes
         self.valueSize = valueSize
+        self.keySize = keySize
+        self.querySize = querySize
         
         # The word embedding layer for the inputs
         self.input_embedding_layer = nn.Embedding(self.inputVocabSize, inputEmbeddingSize).to(device=device)
@@ -530,7 +535,12 @@ class transformer(nn.Module):
         Y_batches = np.split(np.array(Y), slices)[:-1]
 
         # Iterate and update the model
-        for iter in range(0, 10000):
+        for iter in range(1, 10000):
+            # Update the learning rate
+            alpha = (self.valueSize**-0.5)*min((iter**-0.5), (iter*(self.warmupSteps**-1.5)))
+            for g in self.optimizer.param_groups:
+                g["lr"] = alpha
+
             # Total loss of all batches
             totalLoss = 0
 
