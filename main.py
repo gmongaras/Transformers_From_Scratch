@@ -56,7 +56,7 @@ def train():
     
     
     # Other parameters
-    maxSentenceSize = 180
+    maxSentenceSize = 110
     
     
     

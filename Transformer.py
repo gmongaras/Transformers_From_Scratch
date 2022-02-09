@@ -611,11 +611,10 @@ class transformer(nn.Module):
                     linear[:, :, -1] = 0 # Don't allow <PAD> to be predicted
                     softmax = nn.Softmax(dim=-1)(linear)
                     
-                    # Get the max softmax values
-                    maxSoftmax = torch.max(softmax, dim=-1, keepdim=True)
-                    
                     # Add the max softmax values to the softVals array
-                    softVals = torch.cat((softVals, maxSoftmax[0]), dim=-1)
+                    softmax_sub = softmax[:, wordIndex-1]
+                    softmax_sub = softmax_sub.reshape(softmax_sub.shape[0], 1, softmax_sub.shape[1])
+                    softVals = torch.cat((softVals, softmax_sub), dim=-2)
                     
                     # Get the indices of the max softmax values
                     dictVals = torch.argmax(softmax, dim=-1)
