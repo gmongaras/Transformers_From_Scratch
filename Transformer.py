@@ -570,7 +570,7 @@ class transformer(nn.Module):
                 output_init = []
                 for i in range(0, len(Y_sub)):
                     output_init.append(torch.tensor([], device=device, requires_grad=True))
-                
+
                 
                 outputMatrix = torch.stack(output_init)
                 newWords = ["<START>" for i in range(0, slices[batch_num])]

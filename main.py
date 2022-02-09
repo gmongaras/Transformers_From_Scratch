@@ -43,14 +43,14 @@ def createVocab(inp):
 
 def train():
     # Hyperparameters
-    inputEmbeddingSize = 20
-    outputEmbeddingSize = 20
+    inputEmbeddingSize = 64
+    outputEmbeddingSize = 64
     attention_heads = 8
     keySize = 64
     querySize = keySize
     valueSize = 64
-    numBlocks = 2
-    alpha = 1
+    numBlocks = 6
+    alpha = 0.001
     batchSize = 10
     warmupSteps = 4000
     
@@ -111,5 +111,5 @@ def train():
     model(inputs, outputs)
 
 
-
-train()
+if __name__=='__main__':
+    train()
