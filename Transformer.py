@@ -580,11 +580,15 @@ class transformer(nn.Module):
                 endVector = [False for i in range(0, slices[batch_num])]
                 allEnd = False
                 
+                
+                # Store the softmax values for each word
+                softVals = torch.tensor([])
+                
                     
                 # While the final character is not a <END> and the
                 # max sentence length has not been reached, create
                 # the new sentence
-                #outputRes = torch.tensor([])
+                counter = 1
                 while (wordIndex <= self.maxSentenceSize and allEnd == False):
                     # Add the new word to the arrays
                     newOutputMatrix = []
@@ -606,6 +610,12 @@ class transformer(nn.Module):
                     linear = self.finalLinear(outputMatrix)
                     linear[:, :, -1] = 0 # Don't allow <PAD> to be predicted
                     softmax = nn.Softmax(dim=-1)(linear)
+                    
+                    # Get the max softmax values
+                    maxSoftmax = torch.max(softmax, dim=-1, keepdim=True)
+                    
+                    # Add the max softmax values to the softVals array
+                    softVals = torch.cat((softVals, maxSoftmax[0]), dim=-1)
                     
                     # Get the indices of the max softmax values
                     dictVals = torch.argmax(softmax, dim=-1)
@@ -670,7 +680,7 @@ class transformer(nn.Module):
                     # Split the embeddings and softmax values by the last word indices
                     # so the loss doesn't count the <PAD> terms
                     out_embeddings_NoPosEnc_oneHot_sub = out_embeddings_NoPosEnc_oneHot[i][:lastWordIdx[i]]
-                    softmax_sub = softmax[i][:lastWordIdx[i]]
+                    softmax_sub = softVals[i][:lastWordIdx[i]]
 
                     loss.append(self.CrossEntropyLoss(out_embeddings_NoPosEnc_oneHot_sub, softmax_sub).mean())
                 loss = torch.stack(loss)
