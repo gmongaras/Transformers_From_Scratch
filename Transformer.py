@@ -36,10 +36,13 @@ class multiHeadAttention(nn.Module):
         
         # Randomly create "attention_heads" number of key, value, 
         # and query weights. Each matrix is of shape
-        #for i in range(0, attention_heads):
-        self.keyWeights = torch.tensor(np.random.uniform(0, max(inputVocabSize, outputVocabSize), size=(inputEmbeddingSize, querySize)), requires_grad=True, dtype=torch.float64, device=device)
-        self.valueWeights = torch.tensor(np.random.uniform(0, max(inputVocabSize, outputVocabSize), size=(inputEmbeddingSize, keySize)), requires_grad=True, dtype=torch.float64, device=device)
-        self.queryWeights = torch.tensor(np.random.uniform(0, max(inputVocabSize, outputVocabSize), size=(inputEmbeddingSize, valueSize)), requires_grad=True, dtype=torch.float64, device=device)
+        self.keyWeights = []
+        self.valueWeights = []
+        self.queryWeights = []
+        for i in range(0, attention_heads):
+            self.keyWeights.append(torch.tensor(np.random.uniform(0, max(inputVocabSize, outputVocabSize), size=(inputEmbeddingSize, querySize)), requires_grad=True, dtype=torch.float64, device=device))
+            self.valueWeights.append(torch.tensor(np.random.uniform(0, max(inputVocabSize, outputVocabSize), size=(inputEmbeddingSize, keySize)), requires_grad=True, dtype=torch.float64, device=device))
+            self.queryWeights.append(torch.tensor(np.random.uniform(0, max(inputVocabSize, outputVocabSize), size=(inputEmbeddingSize, valueSize)), requires_grad=True, dtype=torch.float64, device=device))
         
         # Create the weight matrix to convert the multi-head attention
         # to a single usable. The weight matrix is of the following
@@ -47,33 +50,34 @@ class multiHeadAttention(nn.Module):
         self.weightMatrix = torch.tensor(np.random.uniform(0, max(inputVocabSize, outputVocabSize), size=(attention_heads*valueSize, inputEmbeddingSize)), requires_grad=True, dtype=torch.float64, device=device)
         
         # The optimizer for the model
-        self.optimizer = optim.Adam([self.keyWeights, self.valueWeights, self.queryWeights, self.weightMatrix], lr=alpha)
+        #self.optimizer = optim.Adam([self.keyWeights, self.valueWeights, self.queryWeights, self.weightMatrix], lr=alpha)
     
     
     # Given some embeddings, the self-attention layer
     # computes the self-attention for the embeddings
     # Inputs:
+    #   attIndex - The attention index used to know what K, Q, and V to use
     #   embeddings - The embeddings to compute the self-attention for
     #   embeddings2 - An optional second set of embeddings used to
     #                 compute part of the KVQ values
-    def selfAttention(self, embeddings, embeddings2 = None):
+    def selfAttention(self, attIndex, embeddings, embeddings2 = None):
         embeddings = embeddings.double()
         try:
-            keys = torch.matmul(embeddings, self.keyWeights)
-            values = torch.matmul(embeddings, self.valueWeights)
+            keys = torch.matmul(embeddings, self.keyWeights[attIndex])
+            values = torch.matmul(embeddings, self.valueWeights[attIndex])
             if embeddings2 != None:
                 embeddings2 = embeddings2.double()
-                queries = torch.matmul(embeddings2, self.queryWeights)
+                queries = torch.matmul(embeddings2, self.queryWeights[attIndex])
             else:
-                queries = torch.matmul(embeddings, self.queryWeights)
+                queries = torch.matmul(embeddings, self.queryWeights[attIndex])
         except:
-            keys = torch.matmul(embeddings.double(), self.keyWeights.T)
-            values = torch.matmul(embeddings, self.valueWeights.T)
+            keys = torch.matmul(embeddings.double(), self.keyWeights[attIndex].T)
+            values = torch.matmul(embeddings, self.valueWeights[attIndex].T)
             if embeddings2 != None:
                 embeddings2 = embeddings2.double()
-                queries = torch.matmul(embeddings2, self.queryWeights.T)
+                queries = torch.matmul(embeddings2, self.queryWeights[attIndex].T)
             else:
-                queries = torch.matmul(embeddings, self.queryWeights.T)
+                queries = torch.matmul(embeddings, self.queryWeights[attIndex].T)
         
         # Calculate the attention
         return torch.matmul(nn.functional.softmax(torch.matmul(queries, keys.reshape(keys.shape[0], keys.shape[2], keys.shape[1]))/int(np.sqrt(self.keySize)), dim=-1), values)
@@ -94,7 +98,7 @@ class multiHeadAttention(nn.Module):
         for i in range(0, self.attention_heads):
             # Calculate the self-attention for all
             # given embeddings
-            attentionVals = self.selfAttention(embeddings, embeddings2)
+            attentionVals = self.selfAttention(i, embeddings, embeddings2)
             attentionValues.append(attentionVals)
             
         # Convert the list of attention to a tensor
