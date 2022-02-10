@@ -586,7 +586,7 @@ class transformer(nn.Module):
                 
                 
                 # Store the softmax values for each word
-                softVals = torch.tensor([])
+                softVals = torch.tensor([], device=device)
                 
                     
                 # While the final character is not a <END> and the
