@@ -1,3 +1,4 @@
+import re
 import torch
 from torch import nn
 from torch import optim
@@ -40,17 +41,19 @@ class multiHeadAttention(nn.Module):
         self.valueWeights = []
         self.queryWeights = []
         for i in range(0, attention_heads):
-            self.keyWeights.append(torch.tensor(np.random.uniform(0, max(inputVocabSize, outputVocabSize), size=(inputEmbeddingSize, querySize)), requires_grad=True, dtype=torch.float64, device=device))
-            self.valueWeights.append(torch.tensor(np.random.uniform(0, max(inputVocabSize, outputVocabSize), size=(inputEmbeddingSize, keySize)), requires_grad=True, dtype=torch.float64, device=device))
-            self.queryWeights.append(torch.tensor(np.random.uniform(0, max(inputVocabSize, outputVocabSize), size=(inputEmbeddingSize, valueSize)), requires_grad=True, dtype=torch.float64, device=device))
+            self.keyWeights.append(nn.Parameter(torch.tensor(np.random.uniform(0, max(inputVocabSize, outputVocabSize), size=(inputEmbeddingSize, keySize)), requires_grad=True, dtype=torch.float64, device=device), requires_grad=True))
+            self.valueWeights.append(nn.Parameter(torch.tensor(np.random.uniform(0, max(inputVocabSize, outputVocabSize), size=(inputEmbeddingSize, keySize)), requires_grad=True, dtype=torch.float64, device=device), requires_grad=True))
+            self.queryWeights.append(nn.Parameter(torch.tensor(np.random.uniform(0, max(inputVocabSize, outputVocabSize), size=(inputEmbeddingSize, querySize)), requires_grad=True, dtype=torch.float64, device=device), requires_grad=True))
+        
+        # Convert the arrays to parameter lists so it can be updated
+        self.keyWeights = nn.ParameterList(self.keyWeights)
+        self.valueWeights = nn.ParameterList(self.valueWeights)
+        self.queryWeights = nn.ParameterList(self.queryWeights)
         
         # Create the weight matrix to convert the multi-head attention
         # to a single usable. The weight matrix is of the following
         # shape: (maxSentenceSize, attention_heads*maxSentenceSize)
-        self.weightMatrix = torch.tensor(np.random.uniform(0, max(inputVocabSize, outputVocabSize), size=(attention_heads*valueSize, inputEmbeddingSize)), requires_grad=True, dtype=torch.float64, device=device)
-        
-        # The optimizer for the model
-        #self.optimizer = optim.Adam([self.keyWeights, self.valueWeights, self.queryWeights, self.weightMatrix], lr=alpha)
+        self.weightMatrix = nn.Parameter(torch.tensor(np.random.uniform(0, max(inputVocabSize, outputVocabSize), size=(attention_heads*valueSize, inputEmbeddingSize)), requires_grad=True, dtype=torch.float64, device=device), requires_grad=True)
     
     
     # Given some embeddings, the self-attention layer
@@ -137,9 +140,6 @@ class FeedForward(nn.Module):
             nn.Linear(innerDim, outputDim),
             nn.ReLU(),
         ).to(device=device)
-        
-        # The optimizer for the model
-        self.optimizer = optim.Adam(self.model.parameters())
     
     
     
@@ -175,9 +175,6 @@ class inputTransformerBlock(nn.Module):
         
         # Create a fully connected layer
         self.FullyConnected = FeedForward(maxSentenceSize, 2048, maxSentenceSize).to(device=device)
-        
-        # Optimizer for the model
-        self.optimizer = optim.Adam(self.FullyConnected.parameters())
     
     
     # Get the transformer encodings for the inputs
@@ -238,9 +235,6 @@ class outputTransformerBlock(nn.Module):
         
         # Create a fully connected layer
         self.FullyConnected = FeedForward(maxSentenceSize, 2048, maxSentenceSize).to(device=device)
-        
-        # Optimizer for the model
-        self.optimizer = optim.Adam(self.FullyConnected.parameters())
     
     
     # Get the transformer encodings for the output
@@ -309,7 +303,7 @@ class transformer(nn.Module):
         self.inputVocab = inputVocab
         self.outputVocab = outputVocab
 
-	# Save the number of warmup steps
+	    # Save the number of warmup steps
         self.warmupSteps = warmupSteps
         
         # Store the input and output vocabulary, but inversed
@@ -616,7 +610,7 @@ class transformer(nn.Module):
                     # the linear layer has the same number of nodes
                     # as the output Vocab
                     linear = self.finalLinear(outputMatrixReshaped)
-                    linear[:, -1] = 0 # Don't allow <PAD> to be predicted
+                    #linear[:, -1] = 0 # Don't allow <PAD> to be predicted
                     softmax = nn.Softmax(dim=-1)(linear)
                     
                     # Add the max softmax values to the softVals array
@@ -637,19 +631,6 @@ class transformer(nn.Module):
                     for i in range(0, wordIdx.shape[0]):
                         newWords.append(self.outputVocab_inv[wordIdx[i].item()])
                         
-                    # Check if any of the new words are special words
-                    #for i in range(0, len(newWords)):
-                    #    if newWords[i] in specialWords:
-                    #        endVector[i] = True
-                    
-                    # If all values in the end vector are True,
-                    # stop the loop
-                    #allEnd = True
-                    #for i in range(0, len(newWords)):
-                    #    if endVector[i] == False:
-                    #        allEnd = False
-                    #        break
-                    
                     # Increase the word index
                     wordIndex += 1
                 
