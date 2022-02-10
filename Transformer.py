@@ -346,7 +346,7 @@ class transformer(nn.Module):
         
         
         # Output linear layer
-        self.finalLinear = nn.Sequential(nn.Linear(self.inputEmbeddingSize, self.outputVocabSize)).to(device=device)
+        self.finalLinear = nn.Sequential(nn.Linear(self.inputEmbeddingSize*self.maxSentenceSize, self.outputVocabSize)).to(device=device)
         
         # The loss function for the transformer
         #self.loss_funct = torch.nn.CrossEntropyLoss().to(device=device)
@@ -588,8 +588,7 @@ class transformer(nn.Module):
                 # While the final character is not a <END> and the
                 # max sentence length has not been reached, create
                 # the new sentence
-                counter = 1
-                while (wordIndex <= self.maxSentenceSize and allEnd == False):
+                while (wordIndex < self.maxSentenceSize and allEnd == False):
                     # Add the new word to the arrays
                     newOutputMatrix = []
                     for i in range(0, len(Y_sub)):
@@ -603,16 +602,22 @@ class transformer(nn.Module):
                     # Send the output through the output blocks
                     for block in range(0, int(self.numBlocks/2)):
                         outputMatrix = self.outputBlocks[block](inputRes, outputMatrix)
+                    
+                    # Reshape the output matrix so that the linear layer
+                    # converts the sentence length and word embedding dimesnions
+                    # to a single output dictionary size dimension
+                    outputMatrixReshaped = outputMatrix.reshape((outputMatrix.shape[0], outputMatrix.shape[1]*outputMatrix.shape[2]))
                         
                     # Send the output through the linear layer where
                     # the linear layer has the same number of nodes
                     # as the output Vocab
-                    linear = self.finalLinear(outputMatrix)
-                    linear[:, :, -1] = 0 # Don't allow <PAD> to be predicted
+                    linear = self.finalLinear(outputMatrixReshaped)
+                    linear[:, -1] = 0 # Don't allow <PAD> to be predicted
                     softmax = nn.Softmax(dim=-1)(linear)
                     
                     # Add the max softmax values to the softVals array
-                    softmax_sub = softmax[:, wordIndex-1]
+                    #softmax_sub = softmax[:, wordIndex]
+                    softmax_sub = softmax
                     softmax_sub = softmax_sub.reshape(softmax_sub.shape[0], 1, softmax_sub.shape[1])
                     softVals = torch.cat((softVals, softmax_sub), dim=-2)
                     
@@ -620,7 +625,8 @@ class transformer(nn.Module):
                     dictVals = torch.argmax(softmax, dim=-1)
                     
                     # Get the new word indices
-                    wordIdx = dictVals[:, wordIndex-1]
+                    #wordIdx = dictVals[:, wordIndex]
+                    wordIdx = dictVals
                     
                     # Get the new words
                     newWords = []
@@ -628,17 +634,17 @@ class transformer(nn.Module):
                         newWords.append(self.outputVocab_inv[wordIdx[i].item()])
                         
                     # Check if any of the new words are special words
-                    for i in range(0, len(newWords)):
-                        if newWords[i] in specialWords:
-                            endVector[i] = True
+                    #for i in range(0, len(newWords)):
+                    #    if newWords[i] in specialWords:
+                    #        endVector[i] = True
                     
                     # If all values in the end vector are True,
                     # stop the loop
-                    allEnd = True
-                    for i in range(0, len(newWords)):
-                        if endVector[i] == False:
-                            allEnd = False
-                            break
+                    #allEnd = True
+                    #for i in range(0, len(newWords)):
+                    #    if endVector[i] == False:
+                    #        allEnd = False
+                    #        break
                     
                     # Increase the word index
                     wordIndex += 1
@@ -657,11 +663,12 @@ class transformer(nn.Module):
                 out_embeddings_NoPosEnc = self.embedOutputs_NoPosEnc(Y_sub)
                 
                 # Get the indices of the max softmax values
-                dictVals = torch.argmax(softmax, dim=-1)
+                dictVals = torch.argmax(softVals, dim=-1)
                 
-                # Get the decoded sentences
+                # Get the decoded new words
                 output = []
                 for i in range(0, x_sub.shape[0]):
+                    #output.append(self.outputVocab_inv[dictVals[i].cpu().numpy().item()])
                     output.append([self.outputVocab_inv[j.cpu().numpy().item()] for j in dictVals[i]])
                     # print(x[i][:10])
                     # print(output[i][:10])
