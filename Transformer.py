@@ -462,7 +462,8 @@ class transformer(nn.Module):
             #embedding = self.embedWords(sentence, "Output")
             
             # pad the array with "PAD" values.
-            paddedEmbedding = [t for t in embedding[:currentIndex]]
+            #paddedEmbedding = [t for t in embedding[:currentIndex]]
+            paddedEmbedding = [t for t in embedding]
             for i in range(0, self.maxSentenceSize - embedding.shape[0]):
                 paddedEmbedding.append(self.embedWords(["<PAD>"], "Output")[0])
             paddedEmbedding = torch.stack(paddedEmbedding)
@@ -471,7 +472,8 @@ class transformer(nn.Module):
             # size as the sentence embedding
             idx = paddedEmbedding.shape[0]-1
             #posEnc =  torch.tensor([np.sin(idx/np.power(10000, (2*paddedEmbedding[idx].shape[0])/self.outputEmbeddingSize))] if (idx%2 == 0) else [np.cos(idx/np.power(10000, (2*paddedEmbedding[idx].shape[0])/self.outputEmbeddingSize))], dtype=torch.float, requires_grad=True, device=device)
-            posEnc =  torch.tensor([[0] if i != paddedEmbedding.shape[0]-1 else [np.sin(idx/np.power(10000, (2*paddedEmbedding[idx].shape[0])/self.outputEmbeddingSize))] if (idx%2 == 0) else [np.cos(idx/np.power(10000, (2*paddedEmbedding[idx].shape[0])/self.outputEmbeddingSize))] for i in range(0, paddedEmbedding.shape[0])], dtype=torch.float, requires_grad=True, device=device)
+            posEnc = torch.tensor([[np.sin(i/np.power(10000, (2*paddedEmbedding[i].shape[0])/self.outputEmbeddingSize))] if (i%2 == 0) else [np.cos(i/np.power(10000, (2*paddedEmbedding[i].shape[0])/self.outputEmbeddingSize))] for i in range(0, paddedEmbedding.shape[0])], requires_grad=True, device=device)
+            #posEnc =  torch.tensor([[0] if i != paddedEmbedding.shape[0]-1 else [np.sin(idx/np.power(10000, (2*paddedEmbedding[idx].shape[0])/self.outputEmbeddingSize))] if (idx%2 == 0) else [np.cos(idx/np.power(10000, (2*paddedEmbedding[idx].shape[0])/self.outputEmbeddingSize))] for i in range(0, paddedEmbedding.shape[0])], dtype=torch.float, requires_grad=True, device=device)
             #posEnc = torch.tensor([[0] if i == embedding.shape[0]-1 else [np.sin(i/np.power(10000, (2*embedding[i].shape[0])/self.outputEmbeddingSize))] if (i%2 == 0) else [np.cos(i/np.power(10000, (2*embedding[i].shape[0])/self.outputEmbeddingSize))] for i in range(0, embedding.shape[0])], dtype=torch.float, requires_grad=True, device=device)
             
             # Apply positional encodings to the embedding
@@ -551,10 +553,6 @@ class transformer(nn.Module):
                 # Send the words through the word embedding layer
                 in_embeddings = self.embedInputs(x_sub)
                 
-                # Test data
-                #inputRes = in_embeddings
-                #outputRes = out_embeddings
-                
                 # Send the embeddings through the input layer
                 inputRes = in_embeddings
                 for i in range(0, int(self.numBlocks/2)):
@@ -570,7 +568,6 @@ class transformer(nn.Module):
                     output_init.append(torch.tensor([], device=device, requires_grad=True))
 
                 
-                outputMatrix = torch.stack(output_init)
                 newWords = ["<START>" for i in range(0, slices[batch_num])]
                 endEncoding = self.embedWords(["<END>"], "Output")[0]
                 wordIndex = 1
@@ -581,6 +578,10 @@ class transformer(nn.Module):
                 
                 # Store the softmax values for each word
                 softVals = torch.tensor([], device=device)
+                
+                # Store the current output sentences which will
+                # update as the model predicts new outputs
+                outputMatrix = torch.stack(output_init)
                 
                     
                 # While the final character is not a <END> and the
@@ -595,21 +596,21 @@ class transformer(nn.Module):
                     outputMatrix = torch.stack(newOutputMatrix)
                     
                     # Send the outputs through the word embedding layer
-                    outputMatrix = self.embedOutputs_OnlyPosEnc(outputMatrix, wordIndex)
+                    outputMatrix_posEnc = self.embedOutputs_OnlyPosEnc(outputMatrix, wordIndex-1)
                     
                     # Send the output through the output blocks
                     for block in range(0, int(self.numBlocks/2)):
-                        outputMatrix = self.outputBlocks[block](inputRes, outputMatrix)
+                        outputPreds = self.outputBlocks[block](inputRes, outputMatrix_posEnc)
                     
                     # Reshape the output matrix so that the linear layer
                     # converts the sentence length and word embedding dimesnions
                     # to a single output dictionary size dimension
-                    outputMatrixReshaped = outputMatrix.reshape((outputMatrix.shape[0], outputMatrix.shape[1]*outputMatrix.shape[2]))
+                    outputPredsReshaped = outputPreds.reshape((outputPreds.shape[0], outputPreds.shape[1]*outputPreds.shape[2]))
                         
                     # Send the output through the linear layer where
                     # the linear layer has the same number of nodes
                     # as the output Vocab
-                    linear = self.finalLinear(outputMatrixReshaped)
+                    linear = self.finalLinear(outputPredsReshaped)
                     #linear[:, -1] = 0 # Don't allow <PAD> to be predicted
                     softmax = nn.Softmax(dim=-1)(linear)
                     
