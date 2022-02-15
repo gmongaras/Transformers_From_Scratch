@@ -138,7 +138,6 @@ class FeedForward(nn.Module):
             nn.Linear(inputDim, innerDim),
             nn.ReLU(),
             nn.Linear(innerDim, outputDim),
-            nn.ReLU(),
         ).to(device=device)
     
     
@@ -344,7 +343,8 @@ class transformer(nn.Module):
         
         
         # Output linear layer
-        self.finalLinear = nn.Sequential(nn.Linear(self.inputEmbeddingSize*self.maxSentenceSize, self.outputVocabSize)).to(device=device)
+        #self.finalLinear = nn.Sequential(nn.Linear(self.inputEmbeddingSize*self.maxSentenceSize, self.outputVocabSize)).to(device=device)
+        self.finalLinear = nn.Sequential(nn.Linear(self.inputEmbeddingSize, self.outputVocabSize)).to(device=device)
         
         # The loss function for the transformer
         #self.loss_funct = torch.nn.CrossEntropyLoss().to(device=device)
@@ -605,18 +605,18 @@ class transformer(nn.Module):
                     # Reshape the output matrix so that the linear layer
                     # converts the sentence length and word embedding dimesnions
                     # to a single output dictionary size dimension
-                    outputPredsReshaped = outputPreds.reshape((outputPreds.shape[0], outputPreds.shape[1]*outputPreds.shape[2]))
+                    #outputPredsReshaped = outputPreds.reshape((outputPreds.shape[0], outputPreds.shape[1]*outputPreds.shape[2]))
                         
                     # Send the output through the linear layer where
                     # the linear layer has the same number of nodes
                     # as the output Vocab
-                    linear = self.finalLinear(outputPredsReshaped)
+                    linear = self.finalLinear(outputPreds)
                     #linear[:, -1] = 0 # Don't allow <PAD> to be predicted
                     softmax = nn.Softmax(dim=-1)(linear)
                     
                     # Add the max softmax values to the softVals array
-                    #softmax_sub = softmax[:, wordIndex]
-                    softmax_sub = softmax
+                    softmax_sub = softmax[:, wordIndex]
+                    #softmax_sub = softmax
                     softmax_sub = softmax_sub.reshape(softmax_sub.shape[0], 1, softmax_sub.shape[1])
                     softVals = torch.cat((softVals, softmax_sub), dim=-2)
                     
@@ -624,8 +624,8 @@ class transformer(nn.Module):
                     dictVals = torch.argmax(softmax, dim=-1)
                     
                     # Get the new word indices
-                    #wordIdx = dictVals[:, wordIndex]
-                    wordIdx = dictVals
+                    wordIdx = dictVals[:, wordIndex]
+                    #wordIdx = dictVals
                     
                     # Get the new words
                     newWords = []
