@@ -3,7 +3,10 @@
 
 
 # The max sentence length we want
-maxLen = 512
+maxLen = 100
+
+# The max number of lines we want
+maxLines = 2000000
 
 # Read in the input files
 file1_I = open("data/english.txt", mode="r", encoding="utf-8")
@@ -21,12 +24,18 @@ lines2 = file2_I.readlines()
 
 
 # Iterate over all lines in each of the files
+lineCt = 0
 for i in range(0, len(lines1)):
     # If the number of spaces in each line is less than the specified length,
     # add the lines to the files
     if (lines1[i].count(" ") < maxLen and lines2[i].count(" ") < maxLen):
         file1_O.write(lines1[i])
         file2_O.write(lines2[i])
+        lineCt += 1
+    
+    # If the line count is larger than the line count wanted, break the loop
+    if (lineCt >= maxLines and maxLines != -1):
+        break
 
 
 # Close the files
