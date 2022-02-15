@@ -138,7 +138,6 @@ class FeedForward(nn.Module):
             nn.Linear(inputDim, innerDim),
             nn.ReLU(),
             nn.Linear(innerDim, outputDim),
-            nn.ReLU(),
         ).to(device=device)
     
     
