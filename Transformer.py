@@ -23,8 +23,8 @@ class multiHeadAttention(nn.Module):
     #   keySize - The vector size of the key
     #   querySize - The vector size of the query
     #   valueSize - The vector size of the value
-    #   alpha - The learning rate of the model
-    def __init__(self, maxSentenceSize, inputVocabSize, outputVocabSize, inputEmbeddingSize, outputEmbeddingSize, attention_heads, keySize, querySize, valueSize, alpha=0.001):
+    #   mask - True if masking should be used, False otherwise
+    def __init__(self, maxSentenceSize, inputVocabSize, outputVocabSize, inputEmbeddingSize, outputEmbeddingSize, attention_heads, keySize, querySize, valueSize, mask = False):
         super(multiHeadAttention, self).__init__()
         
         # Store the number of attention heads
@@ -54,7 +54,14 @@ class multiHeadAttention(nn.Module):
         # to a single usable. The weight matrix is of the following
         # shape: (maxSentenceSize, attention_heads*maxSentenceSize)
         self.weightMatrix = nn.Parameter(torch.tensor(np.random.uniform(0, max(inputVocabSize, outputVocabSize), size=(attention_heads*valueSize, inputEmbeddingSize)), requires_grad=True, dtype=torch.float64, device=device), requires_grad=True)
-    
+        
+        # If masking is used, create a mask which is of
+        # shape (maxSentenceSize, maxSentenceSize) which
+        # will force the model to not look ahead
+        self.useMask = mask
+        if mask:
+            self.mask = mask = torch.tensor([[0 for j in range(0, i+1)] + [-np.inf for j in range(i+1, maxSentenceSize)] for i in range(0, maxSentenceSize)], requires_grad=True, device=device)
+        
     
     # Given some embeddings, the self-attention layer
     # computes the self-attention for the embeddings
@@ -82,8 +89,11 @@ class multiHeadAttention(nn.Module):
             else:
                 queries = torch.matmul(embeddings, self.queryWeights[attIndex].T)
         
-        # Calculate the attention
-        return torch.matmul(nn.functional.softmax(torch.matmul(queries, keys.reshape(keys.shape[0], keys.shape[2], keys.shape[1]))/int(np.sqrt(self.keySize)), dim=-1), values)
+        # Calculate the attention. Use a mask if specified
+        if self.useMask:
+            return torch.matmul(nn.functional.softmax((torch.matmul(queries, keys.reshape(keys.shape[0], keys.shape[2], keys.shape[1])) + self.mask)/int(np.sqrt(self.keySize)), dim=-1), values)
+        else:
+            return torch.matmul(nn.functional.softmax(torch.matmul(queries, keys.reshape(keys.shape[0], keys.shape[2], keys.shape[1]))/int(np.sqrt(self.keySize)), dim=-1), values)
     
     
     
@@ -129,8 +139,7 @@ class FeedForward(nn.Module):
     #   InputDim - Dimensions of the input
     #   inderDim - Dimension of the inner shape
     #   outputDim - Dimensions of the output
-    #   alpha - The learning rate of the model
-    def __init__(self, inputDim=512, innerDim=2048, outputDim=512, alpha=0.001):
+    def __init__(self, inputDim=512, innerDim=2048, outputDim=512):
         super(FeedForward, self).__init__()
         
         # The fully connected model
@@ -227,7 +236,8 @@ class outputTransformerBlock(nn.Module):
         self.valueSize = valueSize
         
         # Create the first multi-head attention layer
-        self.multiHead_Attention1 = multiHeadAttention(maxSentenceSize, inputVocabSize, outputVocabSize, inputEmbeddingSize, outputEmbeddingSize, attention_heads, keySize, querySize, valueSize)
+        # with masking
+        self.multiHead_Attention1 = multiHeadAttention(maxSentenceSize, inputVocabSize, outputVocabSize, inputEmbeddingSize, outputEmbeddingSize, attention_heads, keySize, querySize, valueSize, True)
         
         # Create the second multi-head attention layer
         self.multiHead_Attention2 = multiHeadAttention(maxSentenceSize, inputVocabSize, outputVocabSize, inputEmbeddingSize, outputEmbeddingSize, attention_heads, keySize, querySize, valueSize)
@@ -549,6 +559,10 @@ class transformer(nn.Module):
                 # Store the batch data
                 x_sub = x_batches[batch_num]
                 Y_sub = Y_batches[batch_num]
+                
+                # If the batch is empty, skip it
+                if x_sub.shape[0] == 0:
+                    continue
 
                 # Send the words through the word embedding layer
                 in_embeddings = self.embedInputs(x_sub)
@@ -695,6 +709,11 @@ class transformer(nn.Module):
             print(f"English: {x[-1][:10]}")
             print(f"Spanish: {Y[-1][:10]}")
             print(f"Spanish Prediction: {output[-1][:10]}")
+            print()
+            if (len(output) > 1):
+                print(f"English: {x[-2][:10]}")
+                print(f"Spanish: {Y[-2][:10]}")
+                print(f"Spanish Prediction: {output[-2][:10]}")
             #print(f"Spanish prediction Values: {dictVals[-1][:10]}")
             print(f"Total batch loss: {totalLoss}")
             print()
