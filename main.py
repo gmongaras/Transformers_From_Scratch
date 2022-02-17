@@ -3,8 +3,9 @@ from Transformer import addSTARTAndEND
 import torch
 from torch import nn
 import re
-import matplotlib as plt
+import matplotlib.pyplot as plt
 import numpy as np
+import os
 
 
 
@@ -62,6 +63,7 @@ def main():
     # Other parameters
     loadModel = False        # True to load the model from "modelLoadName", False otherwise
     trainModel = True        # True to train the model, False otherwise
+    stepsToSave = 5          # Number of steps till model is saved
         
     
     
@@ -100,7 +102,7 @@ def main():
     
     ### Training The Model ###
     # Create a transformer model
-    model = transformer(maxSentenceSize, inputVocab, outputVocab, warmupSteps, inputEmbeddingSize, outputEmbeddingSize, attention_heads, keySize, querySize, valueSize, numBlocks, batchSize)
+    model = transformer(maxSentenceSize, inputVocab, outputVocab, warmupSteps, inputEmbeddingSize, outputEmbeddingSize, attention_heads, keySize, querySize, valueSize, numBlocks, batchSize, stepsToSave)
     
     # Load the model if specified
     if loadModel:
@@ -108,10 +110,17 @@ def main():
     
     # Train the model if specified
     if trainModel:
-        model.trainModel(inputs, outputs, numSteps)
+        losses, stepCounts = model.trainModel(inputs, outputs, numSteps, modelSaveName)
     
-        # Save the model
-        model.saveModel(modelSaveName)
+        # Create a graph of the model training process and save it
+        plt.plot(stepCounts, losses)
+        plt.xlabel("Number of Model Updates")
+        plt.ylabel("Loss at step")
+        plt.title("Number of Model Updates vs. Model Loss")
+        graphDir = "/".join(lossPlotFileName.split("/")[0:-1])
+        if not os.path.isdir(graphDir):
+            os.mkdir(graphDir)
+        plt.savefig(lossPlotFileName)
     
     # Get a prediction from the model on a sentence
     testSen = np.array(["This is a test sentence",

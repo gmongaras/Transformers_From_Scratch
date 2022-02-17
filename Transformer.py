@@ -310,9 +310,13 @@ class transformer(nn.Module):
     #   valueSize - The vector size of the value
     #   numBlocks - The number of transformer blocks
     #   batchSize - Size of each minibatch
+    #   stepsToSave - Number of steps until the model should be saved
     #   alpha - The larning rate of the model
-    def __init__(self, maxSentenceSize, inputVocab, outputVocab, warmupSteps, inputEmbeddingSize, outputEmbeddingSize, attention_heads, keySize, querySize, valueSize, numBlocks, batchSize, alpha=0.001):
+    def __init__(self, maxSentenceSize, inputVocab, outputVocab, warmupSteps, inputEmbeddingSize, outputEmbeddingSize, attention_heads, keySize, querySize, valueSize, numBlocks, batchSize, stepsToSave, alpha=0.001):
         super(transformer, self).__init__()
+        
+        # Store the number of steps until the model should be saved
+        self.stepsToSave = stepsToSave
         
         # Store the maximum length
         self.maxSentenceSize = maxSentenceSize
@@ -554,11 +558,16 @@ class transformer(nn.Module):
     #   x - The batch of sentences to translate
     #   Y - The batch of sentences to translate to
     #   numSteps - Number of steps to train the model
-    def trainModel(self, x, Y, numSteps):
+    #   modelSaveName - The name of the file to save the model
+    def trainModel(self, x, Y, numSteps, modelSaveName):
         # Split the data into batches
         slices = [self.batchSize*i for i in range(1, int(len(x)/self.batchSize)+1)]+[(int(len(x)/self.batchSize)*self.batchSize)+len(x)%self.batchSize]
         x_batches = np.split(np.array(x), slices)[:-1]
         Y_batches = np.split(np.array(Y), slices)[:-1]
+        
+        # Arrays of data used to graph
+        losses = []
+        stepCounts = []
 
         # Iterate and update the model
         for iter in range(1, numSteps+1):
@@ -569,6 +578,9 @@ class transformer(nn.Module):
 
             # Total loss of all batches
             totalLoss = 0
+            
+            # The lowest loss so far
+            lowestLoss = np.inf
 
             # Iterate over all batches
             for batch_num in range(0, len(x_batches)):
@@ -715,6 +727,20 @@ class transformer(nn.Module):
                 # Zero the optimizers
                 self.optimizer.zero_grad()
             
+            
+            # Save the model if the number of steps has
+            # passed and the loss is less than the
+            # lowest loss
+            if iter%self.stepsToSave == 0:
+                # Add the total loss to the losses array
+                losses.append(totalLoss)
+                stepCounts.append(iter)
+                
+                if totalLoss < lowestLoss:
+                    # Save the model
+                    self.saveModel(modelSaveName)
+            
+            
             # Show the total batch loss
             print(f"Step #{iter}")
             print(f"English: {x[-1][:10]}")
@@ -725,9 +751,11 @@ class transformer(nn.Module):
                 print(f"English: {x[-2][:10]}")
                 print(f"Spanish: {Y[-2][:10]}")
                 print(f"Spanish Prediction: {output[-2][:10]}")
-            #print(f"Spanish prediction Values: {dictVals[-1][:10]}")
             print(f"Total batch loss: {totalLoss}")
             print()
+        
+        # Return the data used for graphing
+        return losses, stepCounts
         
     
     
