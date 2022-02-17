@@ -3,7 +3,7 @@ import torch
 from torch import nn
 from torch import optim
 import numpy as np
-import pandas as pd
+import os
 
 
 device = torch.device('cpu')
@@ -354,11 +354,17 @@ class transformer(nn.Module):
         self.inputBlocks = []
         for i in range(0, int(numBlocks/2)):
             self.inputBlocks.append(inputTransformerBlock(maxSentenceSize, self.inputVocabSize, self.outputVocabSize, inputEmbeddingSize, outputEmbeddingSize, attention_heads, keySize, querySize, valueSize))
+            l = list(self.inputBlocks[-1].parameters())
+            for b in range(0, len(l)):
+                self.register_parameter(name="input"+str(i)+"_"+str(b), param=torch.nn.Parameter(l[b]))
             
         # Create the output blocks
         self.outputBlocks = []
         for i in range(0, int(numBlocks/2)):
             self.outputBlocks.append(outputTransformerBlock(maxSentenceSize, self.inputVocabSize, self.outputVocabSize, inputEmbeddingSize, outputEmbeddingSize, attention_heads, keySize, querySize, valueSize))
+            l = list(self.outputBlocks[-1].parameters())
+            for b in range(0, len(l)):
+                self.register_parameter(name="output"+str(i)+"_"+str(b), param=torch.nn.Parameter(l[b]))
         
         
         # Output linear layer
@@ -372,6 +378,7 @@ class transformer(nn.Module):
         self.batchSize = batchSize
         
         # The optimizer for this model
+        #self.optimizer = optim.Adam(list(self.parameters()), lr=alpha)
         self.optimizer = optim.Adam(sum(list(list(i.parameters()) for i in self.inputBlocks), []) + sum(list(list(j.parameters()) for j in self.outputBlocks), []) + list(self.finalLinear.parameters()) + list(self.input_embedding_layer.parameters()) + list(self.output_embedding_layer.parameters()), lr=alpha)
 
     
@@ -547,7 +554,7 @@ class transformer(nn.Module):
     #   x - The batch of sentences to translate
     #   Y - The batch of sentences to translate to
     #   numSteps - Number of steps to train the model
-    def train(self, x, Y, numSteps):
+    def trainModel(self, x, Y, numSteps):
         # Split the data into batches
         slices = [self.batchSize*i for i in range(1, int(len(x)/self.batchSize)+1)]+[(int(len(x)/self.batchSize)*self.batchSize)+len(x)%self.batchSize]
         x_batches = np.split(np.array(x), slices)[:-1]
@@ -828,3 +835,36 @@ class transformer(nn.Module):
         
         # Return the decoded sentences
         return wordOutputMatrix
+
+
+
+    # Save a model to the specified path name
+    # Input:
+    #   fileName - The name of the file to save the model to
+    def saveModel(self, fileName):
+        # Get the last separator in the filename
+        dirName = "/".join(fileName.split("/")[0:-1])
+    
+        # If the directory doesn't exist, create it
+        try:
+            if (not os.path.isdir(dirName) and dirName != ''):
+                os.makedirs(dirName, exist_ok=True)
+        
+            torch.save(self.state_dict(), fileName)
+        
+        except:
+            torch.save(self.state_dict(), fileName)
+            
+    
+    
+    # Load a model from the specified path name
+    # Input:
+    #   fileName - The name of the file to load the model from
+    def loadModel(self, fileName):
+        # If the file doesn't exist, raise an error
+        if (not os.path.isfile(fileName)):
+            raise Exception("Specified model file does no exist")
+        
+        # Load the model
+        self.load_state_dict(torch.load(fileName))
+        self.eval()

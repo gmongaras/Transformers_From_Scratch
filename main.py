@@ -34,32 +34,35 @@ def createVocab(inp):
 
 
 
-def train():
+def main():
     # Hyperparameters
-    inputEmbeddingSize = 64
-    outputEmbeddingSize = 64
-    attention_heads = 8
-    keySize = 64
-    querySize = keySize
-    valueSize = 64
-    numBlocks = 6
-    alpha = 0.001
-    batchSize = 10
-    warmupSteps = 4000
-    numSteps = 10000
+    inputEmbeddingSize = 64         # Embedding size of the inputs
+    outputEmbeddingSize = 64        # Embedding size of the outputs
+    attention_heads = 8             # Number of attention heads for multi-head attention
+    keySize = 64                    # Size of the key for multi-head attention
+    querySize = keySize             # Size of the query for multi-head attention
+    valueSize = 64                  # Size of the value for multi-head attention
+    numBlocks = 6                   # Number of transformer blocks to use
+    batchSize = 10                  # Size of each minibatch
+    warmupSteps = 4000              # Number of warmup steps to train the model
+    numSteps = 10000                # Total number of steps to train the model
+    maxSentenceSize = 140           # The max size of each sentence
     
     
+    
+    # File variables
+    inputFileName = "data2/english_sub.txt"         # Name of the input data file
+    outputFileName = "data2/spanish_sub.txt"        # Name of the output data file
+    lossPlotFileName = "visualizations/plot.png"    # Name of the file to save the loss plot to
+    modelSaveName = "models/modelCkPt.pt"           # Name of the file to save the model to
+    modelLoadName = "models/modelCkPt.pt"           # Name of the file to load the model from
+
+
+
     # Other parameters
-    maxSentenceSize = 140
-    
-    
-    
-    # Other variables
-    inputFileName = "data2/english_sub.txt"
-    outputFileName = "data2/spanish_sub.txt"
-    lossPlotFileName = "visualizations/plot.png"
-
-
+    loadModel = False        # True to load the model from "modelLoadName", False otherwise
+    trainModel = True        # True to train the model, False otherwise
+        
     
     
     ### Reading The Data ###
@@ -73,7 +76,7 @@ def train():
     
     # Close the files
     inputFile.close()
-    outputFile.close()
+    outputFile.close()  
     
     
     
@@ -97,10 +100,18 @@ def train():
     
     ### Training The Model ###
     # Create a transformer model
-    model = transformer(maxSentenceSize, inputVocab, outputVocab, warmupSteps, inputEmbeddingSize, outputEmbeddingSize, attention_heads, keySize, querySize, valueSize, numBlocks, batchSize, alpha)
+    model = transformer(maxSentenceSize, inputVocab, outputVocab, warmupSteps, inputEmbeddingSize, outputEmbeddingSize, attention_heads, keySize, querySize, valueSize, numBlocks, batchSize)
     
-    # Train the model
-    model.train(inputs, outputs, numSteps)
+    # Load the model if specified
+    if loadModel:
+        model.loadModel(modelLoadName)
+    
+    # Train the model if specified
+    if trainModel:
+        model.trainModel(inputs, outputs, numSteps)
+    
+        # Save the model
+        model.saveModel(modelSaveName)
     
     # Get a prediction from the model on a sentence
     testSen = np.array(["This is a test sentence",
@@ -117,4 +128,4 @@ def train():
 
 
 if __name__=='__main__':
-    train()
+    main()
