@@ -9,6 +9,15 @@ import pandas as pd
 device = torch.device('cpu')
 if torch.cuda.is_available():
     device = torch.device('cuda')
+    
+    
+# Add <START> and <END> stop words to the sentences
+def addSTARTAndEND(inp):
+    # Iterate over all sentences
+    for i in range(0, len(inp)):
+        inp[i] = ["<START>"] + inp[i] + ["<END>"]
+    
+    return inp
 
 
 class multiHeadAttention(nn.Module):
@@ -41,9 +50,9 @@ class multiHeadAttention(nn.Module):
         self.valueWeights = []
         self.queryWeights = []
         for i in range(0, attention_heads):
-            self.keyWeights.append(nn.Parameter(torch.tensor(np.random.uniform(0, max(inputVocabSize, outputVocabSize), size=(inputEmbeddingSize, keySize)), requires_grad=True, dtype=torch.float64, device=device), requires_grad=True))
-            self.valueWeights.append(nn.Parameter(torch.tensor(np.random.uniform(0, max(inputVocabSize, outputVocabSize), size=(inputEmbeddingSize, keySize)), requires_grad=True, dtype=torch.float64, device=device), requires_grad=True))
-            self.queryWeights.append(nn.Parameter(torch.tensor(np.random.uniform(0, max(inputVocabSize, outputVocabSize), size=(inputEmbeddingSize, querySize)), requires_grad=True, dtype=torch.float64, device=device), requires_grad=True))
+            self.keyWeights.append(nn.Parameter(torch.tensor(np.random.uniform(0, 1, size=(inputEmbeddingSize, keySize)), requires_grad=True, dtype=torch.float64, device=device), requires_grad=True))
+            self.valueWeights.append(nn.Parameter(torch.tensor(np.random.uniform(0, 1, size=(inputEmbeddingSize, keySize)), requires_grad=True, dtype=torch.float64, device=device), requires_grad=True))
+            self.queryWeights.append(nn.Parameter(torch.tensor(np.random.uniform(0, 1, size=(inputEmbeddingSize, querySize)), requires_grad=True, dtype=torch.float64, device=device), requires_grad=True))
         
         # Convert the arrays to parameter lists so it can be updated
         self.keyWeights = nn.ParameterList(self.keyWeights)
@@ -53,7 +62,7 @@ class multiHeadAttention(nn.Module):
         # Create the weight matrix to convert the multi-head attention
         # to a single usable. The weight matrix is of the following
         # shape: (maxSentenceSize, attention_heads*maxSentenceSize)
-        self.weightMatrix = nn.Parameter(torch.tensor(np.random.uniform(0, max(inputVocabSize, outputVocabSize), size=(attention_heads*valueSize, inputEmbeddingSize)), requires_grad=True, dtype=torch.float64, device=device), requires_grad=True)
+        self.weightMatrix = nn.Parameter(torch.tensor(np.random.uniform(0, 1, size=(attention_heads*valueSize, inputEmbeddingSize)), requires_grad=True, dtype=torch.float64, device=device), requires_grad=True)
         
         # If masking is used, create a mask which is of
         # shape (maxSentenceSize, maxSentenceSize) which
@@ -381,7 +390,7 @@ class transformer(nn.Module):
                 try:
                     words_num.append(self.inputVocab[word])
                 except:
-                    words_num.append(self.inputVocabSize)
+                    words_num.append(self.inputVocabSize-1)
             words_num = torch.tensor(words_num, requires_grad=False, device=device)
             
             # Embed the words
@@ -415,7 +424,7 @@ class transformer(nn.Module):
             embedding = self.embedWords(sentence, "Input")
             
             # pad the array with "PAD" values.
-            embedding = torch.tensor(np.pad(embedding.cpu().numpy(), ((0, self.maxSentenceSize - embedding.shape[0]), (0, 0)), mode='constant', constant_values=max(self.inputVocabSize, self.outputVocabSize)+1), requires_grad=True, device=device)
+            embedding = torch.tensor(np.pad(embedding.cpu().numpy(), ((0, self.maxSentenceSize - embedding.shape[0]), (0, 0)), mode='constant', constant_values=self.inputVocab["<PAD>"]), requires_grad=True, device=device)
             
             # Get a poitional encoding vector which is the same
             # size as the sentence embedding
@@ -442,7 +451,7 @@ class transformer(nn.Module):
             embedding = self.embedWords(sentence, "Output")
             
             # pad the array with "PAD" values.
-            embedding = torch.tensor(np.pad(embedding.cpu().numpy(), ((0, self.maxSentenceSize - embedding.shape[0]), (0, 0)), mode='constant', constant_values=self.outputVocabSize+1), requires_grad=True, device=device)
+            embedding = torch.tensor(np.pad(embedding.cpu().numpy(), ((0, self.maxSentenceSize - embedding.shape[0]), (0, 0)), mode='constant', constant_values=self.outputVocab["<PAD>"]), requires_grad=True, device=device)
             
             # Get a poitional encoding vector which is the same
             # size as the sentence embedding
@@ -462,8 +471,7 @@ class transformer(nn.Module):
     # Embed a batch of output sentences to a batch of word embeddings
     # Inputs:
     #   batch - The batch of output sentences to embed
-    #   currentIndex - The current index of the last word
-    def embedOutputs_OnlyPosEnc(self, batch, currentIndex):
+    def embedOutputs_OnlyPosEnc(self, batch):
         # Send the words through the word embedding layer
         embeddings = []
         for sentence in batch:
@@ -534,18 +542,19 @@ class transformer(nn.Module):
     
     
     
-    # Translate the given sentences
+    # Train the model
     # Input:
     #   x - The batch of sentences to translate
     #   Y - The batch of sentences to translate to
-    def forward(self, x, Y):
+    #   numSteps - Number of steps to train the model
+    def train(self, x, Y, numSteps):
         # Split the data into batches
         slices = [self.batchSize*i for i in range(1, int(len(x)/self.batchSize)+1)]+[(int(len(x)/self.batchSize)*self.batchSize)+len(x)%self.batchSize]
         x_batches = np.split(np.array(x), slices)[:-1]
         Y_batches = np.split(np.array(Y), slices)[:-1]
 
         # Iterate and update the model
-        for iter in range(1, 10000):
+        for iter in range(1, numSteps+1):
             # Update the learning rate
             alpha = (self.valueSize**-0.5)*min((iter**-0.5), (iter*(self.warmupSteps**-1.5)))
             for g in self.optimizer.param_groups:
@@ -583,11 +592,7 @@ class transformer(nn.Module):
 
                 
                 newWords = ["<START>" for i in range(0, slices[batch_num])]
-                endEncoding = self.embedWords(["<END>"], "Output")[0]
                 wordIndex = 1
-                specialWords = ["<>"]
-                endVector = [False for i in range(0, slices[batch_num])]
-                allEnd = False
                 
                 
                 # Store the softmax values for each word
@@ -598,10 +603,9 @@ class transformer(nn.Module):
                 outputMatrix = torch.stack(output_init)
                 
                     
-                # While the final character is not a <END> and the
-                # max sentence length has not been reached, create
-                # the new sentence
-                while (wordIndex < self.maxSentenceSize and allEnd == False):
+                # While the max sentence length has not been reached, 
+                # create the new sentence
+                while (wordIndex < self.maxSentenceSize):
                     # Add the new word to the arrays
                     newOutputMatrix = []
                     for i in range(0, len(Y_sub)):
@@ -610,7 +614,7 @@ class transformer(nn.Module):
                     outputMatrix = torch.stack(newOutputMatrix)
                     
                     # Send the outputs through the word embedding layer
-                    outputMatrix_posEnc = self.embedOutputs_OnlyPosEnc(outputMatrix, wordIndex-1)
+                    outputMatrix_posEnc = self.embedOutputs_OnlyPosEnc(outputMatrix)
                     
                     # Send the output through the output blocks
                     for block in range(0, int(self.numBlocks/2)):
@@ -717,3 +721,110 @@ class transformer(nn.Module):
             #print(f"Spanish prediction Values: {dictVals[-1][:10]}")
             print(f"Total batch loss: {totalLoss}")
             print()
+        
+    
+    
+    # Translate the given sentence(s)
+    # Input:
+    #   x - The batch of sentences to translate
+    def forward(self, x):
+        # Breakup the sentence(s)
+        inputs = [re.sub(r'[^\w\s]', '', i.replace("\xa0", " ")).lower().split(" ") for i in x]
+
+        # Add <START> and <END> stop words to the sentence
+        inputs = addSTARTAndEND(inputs)
+
+        # Send the sentences through the word embedding layer
+        in_embeddings = self.embedInputs(inputs)
+        
+        # Send the embeddings through the input layer
+        inputRes = in_embeddings
+        for i in range(0, int(self.numBlocks/2)):
+            # Send the inputs through the input block
+            inputRes = self.inputBlocks[i](inputRes)
+            
+            
+            
+            
+        # Create the initial sentences to get output from
+        output_init = []
+        for i in range(0, len(inputs)):
+            output_init.append(torch.tensor([], device=device, requires_grad=True))
+
+        
+        newWords = ["<START>" for i in range(0, len(inputs))]
+        wordIndex = 1
+        
+        
+        # Store the softmax values for each word
+        softVals = torch.tensor([], device=device)
+        
+        # Store the current output sentences which will
+        # update as the model predicts new outputs
+        outputMatrix = torch.stack(output_init)
+        
+        # Store the output in word form
+        wordOutputMatrix = [[] for i in range(0, len(inputs))]
+        
+            
+        # While the max sentence length has not been reached, 
+        # create the new sentence
+        while (wordIndex < self.maxSentenceSize):
+            # Add the new word to the arrays
+            newOutputMatrix = []
+            for i in range(0, len(inputs)):
+                newOutputMatrix.append(torch.cat((outputMatrix[i][:wordIndex-1], torch.tensor(self.embedWords([newWords[i]], "Output"), device=device, requires_grad=True, dtype=torch.float))))
+                #newOutputMatrix.append(torch.tensor(self.embedWords([newWords[i]], "Output"), device=device, requires_grad=True, dtype=torch.float))
+            outputMatrix = torch.stack(newOutputMatrix)
+            
+            # Add the words to the saved output
+            for i in range(0, len(inputs)):
+                wordOutputMatrix[i].append(newWords[i])
+            
+            # Send the outputs through the word embedding layer
+            outputMatrix_posEnc = self.embedOutputs_OnlyPosEnc(outputMatrix)
+            
+            # Send the output through the output blocks
+            for block in range(0, int(self.numBlocks/2)):
+                outputPreds = self.outputBlocks[block](inputRes, outputMatrix_posEnc)
+            
+            # Reshape the output matrix so that the linear layer
+            # converts the sentence length and word embedding dimesnions
+            # to a single output dictionary size dimension
+            #outputPredsReshaped = outputPreds.reshape((outputPreds.shape[0], outputPreds.shape[1]*outputPreds.shape[2]))
+                
+            # Send the output through the linear layer where
+            # the linear layer has the same number of nodes
+            # as the output Vocab
+            linear = self.finalLinear(outputPreds)
+            #linear[:, -1] = 0 # Don't allow <PAD> to be predicted
+            softmax = nn.Softmax(dim=-1)(linear)
+            
+            # Add the max softmax values to the softVals array
+            softmax_sub = softmax[:, wordIndex]
+            #softmax_sub = softmax
+            softmax_sub = softmax_sub.reshape(softmax_sub.shape[0], 1, softmax_sub.shape[1])
+            softVals = torch.cat((softVals, softmax_sub), dim=-2)
+            
+            # Get the indices of the max softmax values
+            dictVals = torch.argmax(softmax, dim=-1)
+            
+            # Get the new word indices
+            wordIdx = dictVals[:, wordIndex]
+            #wordIdx = dictVals
+            
+            # Get the new words
+            newWords = []
+            for i in range(0, wordIdx.shape[0]):
+                newWords.append(self.outputVocab_inv[wordIdx[i].item()])    
+            
+            # Increase the word index
+            wordIndex += 1
+        
+
+        # Add the final words to the output matrix
+        for i in range(0, len(inputs)):
+                wordOutputMatrix[i].append(newWords[i])
+        
+        # Return the decoded sentences
+        return wordOutputMatrix

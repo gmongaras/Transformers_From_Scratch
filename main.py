@@ -1,17 +1,10 @@
 from Transformer import transformer
+from Transformer import addSTARTAndEND
 import torch
 from torch import nn
 import re
-
-
-
-# Add <START> and <END> stop words to the sentences
-def addSTARTAndEND(inp):
-    # Iterate over all sentences
-    for i in range(0, len(inp)):
-        inp[i] = ["<START>"] + inp[i] + ["<END>"]
-    
-    return inp
+import matplotlib as plt
+import numpy as np
 
 
 
@@ -53,6 +46,7 @@ def train():
     alpha = 0.001
     batchSize = 10
     warmupSteps = 4000
+    numSteps = 10000
     
     
     # Other parameters
@@ -63,6 +57,7 @@ def train():
     # Other variables
     inputFileName = "data2/english_sub.txt"
     outputFileName = "data2/spanish_sub.txt"
+    lossPlotFileName = "visualizations/plot.png"
 
 
     
@@ -96,10 +91,6 @@ def train():
     inputVocab = createVocab(inputs)
     outputVocab = createVocab(outputs)
     
-    # Get the size of each vocab
-    inputVocabSize = len(inputVocab.keys())
-    outputVocabSize = len(outputVocab.keys())
-    
     
     
     
@@ -108,7 +99,21 @@ def train():
     # Create a transformer model
     model = transformer(maxSentenceSize, inputVocab, outputVocab, warmupSteps, inputEmbeddingSize, outputEmbeddingSize, attention_heads, keySize, querySize, valueSize, numBlocks, batchSize, alpha)
     
-    model(inputs, outputs)
+    # Train the model
+    model.train(inputs, outputs, numSteps)
+    
+    # Get a prediction from the model on a sentence
+    testSen = np.array(["This is a test sentence",
+                        "This is another test sentence"])
+    output = model(testSen)
+    
+    print("---------------------------------------------------------")
+    print("Translations:")
+    for i in range(0, len(testSen)):
+        v = output[i] + ["<END>"]
+        print(f"English: {testSen[i]}")
+        print(f"Spanish: {' '.join(v[v.index('<START>')+1:v.index('<END>')])}")
+        print()
 
 
 if __name__=='__main__':
