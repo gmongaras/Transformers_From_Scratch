@@ -6,6 +6,7 @@ import re
 import matplotlib.pyplot as plt
 import numpy as np
 import os
+#torch.autograd.set_detect_anomaly(True)
 
 
 
@@ -48,6 +49,7 @@ def main():
     warmupSteps = 4000              # Number of warmup steps to train the model
     numSteps = 10000                # Total number of steps to train the model
     maxSentenceSize = 140           # The max size of each sentence
+    clipVal = 100000                # The bound used to clip the gradients
     
     
     
@@ -110,7 +112,7 @@ def main():
     
     # Train the model if specified
     if trainModel:
-        losses, stepCounts = model.trainModel(inputs, outputs, numSteps, modelSaveName)
+        losses, stepCounts = model.trainModel(inputs, outputs, numSteps, modelSaveName, clipVal)
     
         # Create a graph of the model training process and save it
         plt.plot(stepCounts, losses)

@@ -192,6 +192,10 @@ class inputTransformerBlock(nn.Module):
         
         # Create a fully connected layer
         self.FullyConnected = FeedForward(maxSentenceSize, 2048, maxSentenceSize).to(device=device)
+
+        # Normalization layers
+        self.norm1 = nn.LayerNorm((self.maxSentenceSize, inputEmbeddingSize)).to(device=device)
+        self.norm2 = nn.LayerNorm((self.maxSentenceSize, inputEmbeddingSize)).to(device=device)
     
     
     # Get the transformer encodings for the inputs
@@ -207,7 +211,7 @@ class inputTransformerBlock(nn.Module):
         
         # Send the attiontion through an add and norm layer
         att_add = att.float() + inputEncoding.float()
-        att_norm = nn.LayerNorm((self.maxSentenceSize, inputEncoding.shape[-1])).to(device=device)(att_add.float())
+        att_norm = self.norm1(att_add.float())
         
         # Compute the forward value
         norm_res = att_norm.reshape(att_norm.shape[0], att_norm.shape[2], att_norm.shape[1])
@@ -216,7 +220,7 @@ class inputTransformerBlock(nn.Module):
         
         # Send the fully connected output through an add and norm layer
         FC_add = FC + att_norm
-        FC_norm = nn.LayerNorm((self.maxSentenceSize, inputEncoding.shape[-1])).to(device=device)(FC_add)
+        FC_norm = self.norm2(FC_add)
         
         # Return the values
         return FC_norm
@@ -253,6 +257,11 @@ class outputTransformerBlock(nn.Module):
         
         # Create a fully connected layer
         self.FullyConnected = FeedForward(maxSentenceSize, 2048, maxSentenceSize).to(device=device)
+
+        # Create three normalization layers
+        self.norm1 = nn.LayerNorm((self.maxSentenceSize, outputEmbeddingSize)).to(device=device)
+        self.norm2 = nn.LayerNorm((self.maxSentenceSize, outputEmbeddingSize)).to(device=device)
+        self.norm3 = nn.LayerNorm((self.maxSentenceSize, outputEmbeddingSize)).to(device=device)
     
     
     # Get the transformer encodings for the output
@@ -270,14 +279,14 @@ class outputTransformerBlock(nn.Module):
         
         # Send the attiontion through an add and norm layer
         att_add = att.float() + outputEncoding.float()
-        att_norm = nn.LayerNorm((self.maxSentenceSize, outputEncoding.shape[-1])).to(device=device)(att_add.float())
+        att_norm = self.norm1(att_add.float())
         
         # Compute the attiontion for the input results and output results
         att2 = self.multiHead_Attention2(inputRes, att_norm)
         
         # Send the new attiontion through an add and norm layer
         att2_add = att2 + outputEncoding
-        att2_norm = nn.LayerNorm((self.maxSentenceSize, outputEncoding.shape[-1])).to(device=device)(att2_add.float())
+        att2_norm = self.norm2(att2_add.float())
         
         # Compute the forward value
         norm_res = att2_norm.reshape(att2_norm.shape[0], att2_norm.shape[2], att2_norm.shape[1])
@@ -286,7 +295,7 @@ class outputTransformerBlock(nn.Module):
         
         # Send the fully connected output through an add and norm layer
         FC_add = FC + att2_norm
-        FC_norm = nn.LayerNorm((self.maxSentenceSize, outputEncoding.shape[-1])).to(device=device)(FC_add)
+        FC_norm = self.norm3(FC_add)
         
         # Return the values
         return FC_norm
@@ -548,6 +557,8 @@ class transformer(nn.Module):
     #   p - The probabilities we want (Probably a one-hot vector)
     #   q - The probabilities the model predicted
     def CrossEntropyLoss(self, p, q):
+        replaceVal = torch.tensor(0.000001, dtype=torch.float32)
+        q = torch.where(q == 0, replaceVal, q)
         return -torch.sum(p*torch.log(q) + (1-p)*torch.log(1-q), dim=-1)
     
     
@@ -559,7 +570,8 @@ class transformer(nn.Module):
     #   Y - The batch of sentences to translate to
     #   numSteps - Number of steps to train the model
     #   modelSaveName - The name of the file to save the model
-    def trainModel(self, x, Y, numSteps, modelSaveName):
+    #   clipVal - The bound used to clip the gradients
+    def trainModel(self, x, Y, numSteps, modelSaveName, clipVal):
         # Split the data into batches
         slices = [self.batchSize*i for i in range(1, int(len(x)/self.batchSize)+1)]+[(int(len(x)/self.batchSize)*self.batchSize)+len(x)%self.batchSize]
         x_batches = np.split(np.array(x), slices)[:-1]
@@ -715,14 +727,17 @@ class transformer(nn.Module):
                 loss = torch.stack(loss)
                 
                 # sum the loss
-                sum = loss.sum()
-                totalLoss += sum.detach().cpu().numpy().item()
+                s = loss.sum()
+                totalLoss += s.detach().cpu().numpy().item()
                 
                 # Update the gradients
-                sum.backward(retain_graph=False)
+                s.backward(retain_graph=False)
                 
                 # Step the optimizer
                 self.optimizer.step()
+
+                # Clip the gradients
+                torch.nn.utils.clip_grad_norm_(sum(list(list(i.parameters()) for i in self.inputBlocks), []) + sum(list(list(j.parameters()) for j in self.outputBlocks), []) + list(self.finalLinear.parameters()) + list(self.input_embedding_layer.parameters()) + list(self.output_embedding_layer.parameters()), clipVal)
                 
                 # Zero the optimizers
                 self.optimizer.zero_grad()
@@ -739,6 +754,7 @@ class transformer(nn.Module):
                 if totalLoss < lowestLoss:
                     # Save the model
                     self.saveModel(modelSaveName)
+                    lowestLoss = totalLoss
             
             
             # Show the total batch loss
