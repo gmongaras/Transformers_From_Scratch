@@ -364,21 +364,23 @@ class transformer(nn.Module):
         # Store the number of blocks
         self.numBlocks = numBlocks
         
-        # Create the input blocks
+        # Create the input blocks while registering each block's
+        # parameters
         self.inputBlocks = []
+        self.inputParameters = []
         for i in range(0, int(numBlocks/2)):
             self.inputBlocks.append(inputTransformerBlock(maxSentenceSize, self.inputVocabSize, self.outputVocabSize, inputEmbeddingSize, outputEmbeddingSize, attention_heads, keySize, querySize, valueSize))
-            l = list(self.inputBlocks[-1].parameters())
-            for b in range(0, len(l)):
-                self.register_parameter(name="input"+str(i)+"_"+str(b), param=torch.nn.Parameter(l[b]))
-            
-        # Create the output blocks
+            self.inputParameters += [b for b in self.inputBlocks[i].parameters()]
+        self.inputParameters = nn.ParameterList(self.inputParameters)
+        
+        # Create the output blocks while registering each block's
+        # parameters
         self.outputBlocks = []
+        self.outputParameters = []
         for i in range(0, int(numBlocks/2)):
             self.outputBlocks.append(outputTransformerBlock(maxSentenceSize, self.inputVocabSize, self.outputVocabSize, inputEmbeddingSize, outputEmbeddingSize, attention_heads, keySize, querySize, valueSize))
-            l = list(self.outputBlocks[-1].parameters())
-            for b in range(0, len(l)):
-                self.register_parameter(name="output"+str(i)+"_"+str(b), param=torch.nn.Parameter(l[b]))
+            self.outputParameters += [b for b in self.outputBlocks[i].parameters()]
+        self.outputParameters = nn.ParameterList(self.outputParameters)
         
         
         # Output linear layer
@@ -393,7 +395,9 @@ class transformer(nn.Module):
         
         # The optimizer for this model
         #self.optimizer = optim.Adam(list(self.parameters()), lr=alpha)
-        self.optimizer = optim.Adam(sum(list(list(i.parameters()) for i in self.inputBlocks), []) + sum(list(list(j.parameters()) for j in self.outputBlocks), []) + list(self.finalLinear.parameters()) + list(self.input_embedding_layer.parameters()) + list(self.output_embedding_layer.parameters()))
+        #self.optimizer = optim.Adam(sum(list(list(i.parameters()) for i in self.inputBlocks), []) + sum(list(list(j.parameters()) for j in self.outputBlocks), []) + list(self.finalLinear.parameters()) + list(self.input_embedding_layer.parameters()) + list(self.output_embedding_layer.parameters()))
+        #self.optimizer = optim.Adam(list(self.inputParameters) + list(self.outputParameters) + list(self.finalLinear.parameters()) + list(self.input_embedding_layer.parameters()) + list(self.output_embedding_layer.parameters()))
+        self.optimizer = optim.Adam(self.parameters())
 
     
     
