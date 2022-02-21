@@ -558,8 +558,8 @@ class transformer(nn.Module):
     #   p - The probabilities we want (Probably a one-hot vector)
     #   q - The probabilities the model predicted
     def CrossEntropyLoss(self, p, q):
-        q = torch.where(q == torch.tensor(0.000001, dtype=torch.float32), q)
-        q = torch.where(q == torch.tensor(0.999999, dtype=torch.float32), q)
+        q = torch.where(q == 0, torch.tensor(0.000001, dtype=torch.float32), q)
+        q = torch.where(q == 1, torch.tensor(0.999999, dtype=torch.float32), q)
         return -torch.sum(p*torch.log(q) + (1-p)*torch.log(1-q), dim=-1)
     
     
