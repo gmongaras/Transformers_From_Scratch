@@ -320,12 +320,13 @@ class transformer(nn.Module):
     #   numBlocks - The number of transformer blocks
     #   batchSize - Size of each minibatch
     #   stepsToSave - Number of steps until the model should be saved
-    #   alpha - The larning rate of the model
-    def __init__(self, maxSentenceSize, inputVocab, outputVocab, warmupSteps, inputEmbeddingSize, outputEmbeddingSize, attention_heads, keySize, querySize, valueSize, numBlocks, batchSize, stepsToSave, alpha=0.001):
+    #   startStep - The starting step when training
+    def __init__(self, maxSentenceSize, inputVocab, outputVocab, warmupSteps, inputEmbeddingSize, outputEmbeddingSize, attention_heads, keySize, querySize, valueSize, numBlocks, batchSize, stepsToSave, startStep=1):
         super(transformer, self).__init__()
         
         # Store the number of steps until the model should be saved
         self.stepsToSave = stepsToSave
+        self.startStep = startStep
         
         # Store the maximum length
         self.maxSentenceSize = maxSentenceSize
@@ -392,7 +393,7 @@ class transformer(nn.Module):
         
         # The optimizer for this model
         #self.optimizer = optim.Adam(list(self.parameters()), lr=alpha)
-        self.optimizer = optim.Adam(sum(list(list(i.parameters()) for i in self.inputBlocks), []) + sum(list(list(j.parameters()) for j in self.outputBlocks), []) + list(self.finalLinear.parameters()) + list(self.input_embedding_layer.parameters()) + list(self.output_embedding_layer.parameters()), lr=alpha)
+        self.optimizer = optim.Adam(sum(list(list(i.parameters()) for i in self.inputBlocks), []) + sum(list(list(j.parameters()) for j in self.outputBlocks), []) + list(self.finalLinear.parameters()) + list(self.input_embedding_layer.parameters()) + list(self.output_embedding_layer.parameters()))
 
     
     
@@ -557,8 +558,8 @@ class transformer(nn.Module):
     #   p - The probabilities we want (Probably a one-hot vector)
     #   q - The probabilities the model predicted
     def CrossEntropyLoss(self, p, q):
-        replaceVal = torch.tensor(0.000001, dtype=torch.float32)
-        q = torch.where(q == 0, replaceVal, q)
+        q = torch.where(q == torch.tensor(0.000001, dtype=torch.float32), replaceVal, q)
+        q = torch.where(q == torch.tensor(0.999999, dtype=torch.float32), replaceVal, q)
         return -torch.sum(p*torch.log(q) + (1-p)*torch.log(1-q), dim=-1)
     
     
@@ -582,7 +583,7 @@ class transformer(nn.Module):
         stepCounts = []
 
         # Iterate and update the model
-        for iter in range(1, numSteps+1):
+        for iter in range(self.startStep, numSteps+1):
             # Update the learning rate
             alpha = (self.valueSize**-0.5)*min((iter**-0.5), (iter*(self.warmupSteps**-1.5)))
             for g in self.optimizer.param_groups:

@@ -47,7 +47,7 @@ def main():
     numBlocks = 6                   # Number of transformer blocks to use
     batchSize = 10                  # Size of each minibatch
     warmupSteps = 4000              # Number of warmup steps to train the model
-    numSteps = 10000                # Total number of steps to train the model
+    numSteps = 10000                 # Total number of steps to train the model
     maxSentenceSize = 140           # The max size of each sentence
     clipVal = 100000                # The bound used to clip the gradients
     
@@ -66,6 +66,7 @@ def main():
     loadModel = False        # True to load the model from "modelLoadName", False otherwise
     trainModel = True        # True to train the model, False otherwise
     stepsToSave = 5          # Number of steps till model is saved
+    startStep = 1            # Step to start on when training (use 1 if not using pretrained model)
         
     
     
@@ -104,7 +105,7 @@ def main():
     
     ### Training The Model ###
     # Create a transformer model
-    model = transformer(maxSentenceSize, inputVocab, outputVocab, warmupSteps, inputEmbeddingSize, outputEmbeddingSize, attention_heads, keySize, querySize, valueSize, numBlocks, batchSize, stepsToSave)
+    model = transformer(maxSentenceSize, inputVocab, outputVocab, warmupSteps, inputEmbeddingSize, outputEmbeddingSize, attention_heads, keySize, querySize, valueSize, numBlocks, batchSize, stepsToSave, startStep)
     
     # Load the model if specified
     if loadModel:
