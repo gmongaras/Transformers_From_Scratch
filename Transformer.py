@@ -7,8 +7,8 @@ import os
 
 
 device = torch.device('cpu')
-if torch.cuda.is_available():
-    device = torch.device('cuda')
+#if torch.cuda.is_available():
+#    device = torch.device('cuda')
     
     
 # Add <START> and <END> stop words to the sentences
@@ -558,8 +558,8 @@ class transformer(nn.Module):
     #   p - The probabilities we want (Probably a one-hot vector)
     #   q - The probabilities the model predicted
     def CrossEntropyLoss(self, p, q):
-        q = torch.where(q == torch.tensor(0.000001, dtype=torch.float32), replaceVal, q)
-        q = torch.where(q == torch.tensor(0.999999, dtype=torch.float32), replaceVal, q)
+        q = torch.where(q == torch.tensor(0.000001, dtype=torch.float32), q)
+        q = torch.where(q == torch.tensor(0.999999, dtype=torch.float32), q)
         return -torch.sum(p*torch.log(q) + (1-p)*torch.log(1-q), dim=-1)
     
     
@@ -730,6 +730,9 @@ class transformer(nn.Module):
                 # sum the loss
                 s = loss.sum()
                 totalLoss += s.detach().cpu().numpy().item()
+
+                if torch.isnan(s):
+                    print()
                 
                 # Update the gradients
                 s.backward(retain_graph=False)
