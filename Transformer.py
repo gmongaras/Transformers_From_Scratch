@@ -734,9 +734,6 @@ class transformer(nn.Module):
                 # sum the loss
                 s = loss.sum()
                 totalLoss += s.detach().cpu().numpy().item()
-
-                if torch.isnan(s):
-                    print()
                 
                 # Update the gradients
                 s.backward(retain_graph=False)
