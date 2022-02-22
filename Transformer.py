@@ -7,8 +7,8 @@ import os
 
 
 device = torch.device('cpu')
-#if torch.cuda.is_available():
-#    device = torch.device('cuda')
+if torch.cuda.is_available():
+    device = torch.device('cuda')
     
     
 # Add <START> and <END> stop words to the sentences

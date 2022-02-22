@@ -1,7 +1,5 @@
 from Transformer import transformer
 from Transformer import addSTARTAndEND
-import torch
-from torch import nn
 import re
 import matplotlib.pyplot as plt
 import numpy as np
@@ -67,6 +65,11 @@ def main():
     trainModel = True        # True to train the model, False otherwise
     stepsToSave = 5          # Number of steps till model is saved
     startStep = 1            # Step to start on when training (use 1 if not using pretrained model)
+    
+    
+    # Testing the model
+    testData = np.array(["Implementation of the President to enhance the Russian Federation",
+                         "This is another test sentence"])
         
     
     
@@ -91,7 +94,7 @@ def main():
     inputs = [re.sub(r'[^\w\s]', '', i.replace("\xa0", " ")).lower().split(" ") for i in inputs]
     outputs = [re.sub(r'[^\w\s]', '', i.replace("\xa0", " ")).lower().split(" ") for i in outputs]
     
-    # Add <START> and <END> stop words to the sentence
+    # Add <START> and <END> stop words to the data
     inputs = addSTARTAndEND(inputs)
     outputs = addSTARTAndEND(outputs)
     
@@ -125,16 +128,17 @@ def main():
             os.mkdir(graphDir)
         plt.savefig(lossPlotFileName)
     
-    # Get a prediction from the model on a sentence
-    testSen = np.array(["This is a test sentence",
-                        "This is another test sentence"])
-    output = model(testSen)
+    
+    
+    
+    ### Testing The Model ###
+    output = model(testData)
     
     print("---------------------------------------------------------")
     print("Translations:")
-    for i in range(0, len(testSen)):
+    for i in range(0, len(testData)):
         v = output[i] + ["<END>"]
-        print(f"English: {testSen[i]}")
+        print(f"English: {testData[i]}")
         print(f"Spanish: {' '.join(v[v.index('<START>')+1:v.index('<END>')])}")
         print()
 
