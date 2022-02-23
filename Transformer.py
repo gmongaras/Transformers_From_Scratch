@@ -114,21 +114,15 @@ class multiHeadAttention(nn.Module):
     #                 compute part of the KVQ values
     def forward(self, embeddings, embeddings2 = None):
         # Holds "attention_heads" number of self-attention
-        attentionValues = []
+        attentionValues = torch.tensor([], requires_grad=True, dtype=embeddings.dtype)
         
         # Collect the self-attention
         for i in range(0, self.attention_heads):
             # Calculate the self-attention for all
             # given embeddings
             attentionVals = self.selfAttention(i, embeddings, embeddings2)
-            attentionValues.append(attentionVals)
+            attentionValues = torch.cat((attentionValues, attentionVals), dim=-1)
             
-        # Convert the list of attention to a tensor
-        attentionValues = torch.stack(attentionValues)
-        
-        # Reshape the tensor to a workable shape
-        attentionValues = attentionValues.reshape((attentionValues.shape[1], attentionValues.shape[2], attentionValues.shape[3]*attentionValues.shape[0]))
-        
         # Multiply the attention values by the weight matrix
         finalAttention = torch.matmul(attentionValues, self.weightMatrix)
         
@@ -191,7 +185,7 @@ class inputTransformerBlock(nn.Module):
         self.multiHead_Attention = multiHeadAttention(maxSentenceSize, inputVocabSize, outputVocabSize, inputEmbeddingSize, outputEmbeddingSize, attention_heads, keySize, querySize, valueSize)
         
         # Create a fully connected layer
-        self.FullyConnected = FeedForward(maxSentenceSize, 2048, maxSentenceSize).to(device=device)
+        self.FullyConnected = FeedForward(inputEmbeddingSize, 2048, inputEmbeddingSize).to(device=device)
 
         # Normalization layers
         self.norm1 = nn.LayerNorm((self.maxSentenceSize, inputEmbeddingSize)).to(device=device)
@@ -214,9 +208,7 @@ class inputTransformerBlock(nn.Module):
         att_norm = self.norm1(att_add.float())
         
         # Compute the forward value
-        norm_res = att_norm.reshape(att_norm.shape[0], att_norm.shape[2], att_norm.shape[1])
-        FC = self.FullyConnected(norm_res)
-        FC = FC.reshape(FC.shape[0], FC.shape[2], FC.shape[1])
+        FC = self.FullyConnected(att_norm)
         
         # Send the fully connected output through an add and norm layer
         FC_add = FC + att_norm
@@ -256,7 +248,7 @@ class outputTransformerBlock(nn.Module):
         self.multiHead_Attention2 = multiHeadAttention(maxSentenceSize, inputVocabSize, outputVocabSize, inputEmbeddingSize, outputEmbeddingSize, attention_heads, keySize, querySize, valueSize)
         
         # Create a fully connected layer
-        self.FullyConnected = FeedForward(maxSentenceSize, 2048, maxSentenceSize).to(device=device)
+        self.FullyConnected = FeedForward(outputEmbeddingSize, 2048, outputEmbeddingSize).to(device=device)
 
         # Create three normalization layers
         self.norm1 = nn.LayerNorm((self.maxSentenceSize, outputEmbeddingSize)).to(device=device)
@@ -289,9 +281,7 @@ class outputTransformerBlock(nn.Module):
         att2_norm = self.norm2(att2_add.float())
         
         # Compute the forward value
-        norm_res = att2_norm.reshape(att2_norm.shape[0], att2_norm.shape[2], att2_norm.shape[1])
-        FC = self.FullyConnected(norm_res)
-        FC = FC.reshape(FC.shape[0], FC.shape[2], FC.shape[1])
+        FC = self.FullyConnected(att2_norm)
         
         # Send the fully connected output through an add and norm layer
         FC_add = FC + att2_norm
@@ -384,19 +374,12 @@ class transformer(nn.Module):
         
         
         # Output linear layer
-        #self.finalLinear = nn.Sequential(nn.Linear(self.inputEmbeddingSize*self.maxSentenceSize, self.outputVocabSize)).to(device=device)
         self.finalLinear = nn.Sequential(nn.Linear(self.inputEmbeddingSize, self.outputVocabSize)).to(device=device)
         
-        # The loss function for the transformer
-        #self.loss_funct = torch.nn.CrossEntropyLoss().to(device=device)
-
         # Save the batch size for later use
         self.batchSize = batchSize
         
         # The optimizer for this model
-        #self.optimizer = optim.Adam(list(self.parameters()), lr=alpha)
-        #self.optimizer = optim.Adam(sum(list(list(i.parameters()) for i in self.inputBlocks), []) + sum(list(list(j.parameters()) for j in self.outputBlocks), []) + list(self.finalLinear.parameters()) + list(self.input_embedding_layer.parameters()) + list(self.output_embedding_layer.parameters()))
-        #self.optimizer = optim.Adam(list(self.inputParameters) + list(self.outputParameters) + list(self.finalLinear.parameters()) + list(self.input_embedding_layer.parameters()) + list(self.output_embedding_layer.parameters()))
         self.optimizer = optim.Adam(self.parameters())
 
     
@@ -505,7 +488,6 @@ class transformer(nn.Module):
             #embedding = self.embedWords(sentence, "Output")
             
             # pad the array with "PAD" values.
-            #paddedEmbedding = [t for t in embedding[:currentIndex]]
             paddedEmbedding = [t for t in embedding]
             for i in range(0, self.maxSentenceSize - embedding.shape[0]):
                 paddedEmbedding.append(self.embedWords(["<PAD>"], "Output")[0])
@@ -514,10 +496,7 @@ class transformer(nn.Module):
             # Get a poitional encoding vector which is the same
             # size as the sentence embedding
             idx = paddedEmbedding.shape[0]-1
-            #posEnc =  torch.tensor([np.sin(idx/np.power(10000, (2*paddedEmbedding[idx].shape[0])/self.outputEmbeddingSize))] if (idx%2 == 0) else [np.cos(idx/np.power(10000, (2*paddedEmbedding[idx].shape[0])/self.outputEmbeddingSize))], dtype=torch.float, requires_grad=True, device=device)
             posEnc = torch.tensor([[np.sin(i/np.power(10000, (2*paddedEmbedding[i].shape[0])/self.outputEmbeddingSize))] if (i%2 == 0) else [np.cos(i/np.power(10000, (2*paddedEmbedding[i].shape[0])/self.outputEmbeddingSize))] for i in range(0, paddedEmbedding.shape[0])], requires_grad=True, device=device)
-            #posEnc =  torch.tensor([[0] if i != paddedEmbedding.shape[0]-1 else [np.sin(idx/np.power(10000, (2*paddedEmbedding[idx].shape[0])/self.outputEmbeddingSize))] if (idx%2 == 0) else [np.cos(idx/np.power(10000, (2*paddedEmbedding[idx].shape[0])/self.outputEmbeddingSize))] for i in range(0, paddedEmbedding.shape[0])], dtype=torch.float, requires_grad=True, device=device)
-            #posEnc = torch.tensor([[0] if i == embedding.shape[0]-1 else [np.sin(i/np.power(10000, (2*embedding[i].shape[0])/self.outputEmbeddingSize))] if (i%2 == 0) else [np.cos(i/np.power(10000, (2*embedding[i].shape[0])/self.outputEmbeddingSize))] for i in range(0, embedding.shape[0])], dtype=torch.float, requires_grad=True, device=device)
             
             # Apply positional encodings to the embedding
             embedding_enc = paddedEmbedding + posEnc
@@ -646,7 +625,6 @@ class transformer(nn.Module):
                     newOutputMatrix = []
                     for i in range(0, len(Y_sub)):
                         newOutputMatrix.append(torch.cat((outputMatrix[i][:wordIndex-1], torch.tensor(self.embedWords([newWords[i]], "Output"), device=device, requires_grad=True, dtype=torch.float))))
-                        #newOutputMatrix.append(torch.tensor(self.embedWords([newWords[i]], "Output"), device=device, requires_grad=True, dtype=torch.float))
                     outputMatrix = torch.stack(newOutputMatrix)
                     
                     # Send the outputs through the word embedding layer
@@ -665,12 +643,10 @@ class transformer(nn.Module):
                     # the linear layer has the same number of nodes
                     # as the output Vocab
                     linear = self.finalLinear(outputPreds)
-                    #linear[:, -1] = 0 # Don't allow <PAD> to be predicted
                     softmax = nn.Softmax(dim=-1)(linear)
                     
                     # Add the max softmax values to the softVals array
                     softmax_sub = softmax[:, wordIndex]
-                    #softmax_sub = softmax
                     softmax_sub = softmax_sub.reshape(softmax_sub.shape[0], 1, softmax_sub.shape[1])
                     softVals = torch.cat((softVals, softmax_sub), dim=-2)
                     
@@ -679,7 +655,6 @@ class transformer(nn.Module):
                     
                     # Get the new word indices
                     wordIdx = dictVals[:, wordIndex]
-                    #wordIdx = dictVals
                     
                     # Get the new words
                     newWords = []
@@ -694,7 +669,6 @@ class transformer(nn.Module):
                 newOutputMatrix = []
                 for i in range(0, len(Y_sub)):
                     newOutputMatrix.append(torch.cat((outputMatrix[i][:wordIndex-1], torch.tensor(self.embedWords([newWords[i]], "Output"), device=device, requires_grad=True, dtype=torch.float))))
-                    #newOutputMatrix.append(torch.tensor(self.embedWords([newWords[i]], "Output"), device=device, requires_grad=True, dtype=torch.float))
                 outputMatrix = torch.stack(newOutputMatrix)
                 
                 
@@ -708,11 +682,7 @@ class transformer(nn.Module):
                 # Get the decoded new words
                 output = []
                 for i in range(0, x_sub.shape[0]):
-                    #output.append(self.outputVocab_inv[dictVals[i].cpu().numpy().item()])
                     output.append([self.outputVocab_inv[j.cpu().numpy().item()] for j in dictVals[i]])
-                    # print(x[i][:10])
-                    # print(output[i][:10])
-                    # print()
                 
                 # One hot encode the output embeddings
                 out_embeddings_NoPosEnc_oneHot = nn.functional.one_hot(out_embeddings_NoPosEnc, num_classes=softmax.shape[-1])
@@ -844,21 +814,14 @@ class transformer(nn.Module):
             for block in range(0, int(self.numBlocks/2)):
                 outputPreds = self.outputBlocks[block](inputRes, outputMatrix_posEnc)
             
-            # Reshape the output matrix so that the linear layer
-            # converts the sentence length and word embedding dimesnions
-            # to a single output dictionary size dimension
-            #outputPredsReshaped = outputPreds.reshape((outputPreds.shape[0], outputPreds.shape[1]*outputPreds.shape[2]))
-                
             # Send the output through the linear layer where
             # the linear layer has the same number of nodes
             # as the output Vocab
             linear = self.finalLinear(outputPreds)
-            #linear[:, -1] = 0 # Don't allow <PAD> to be predicted
             softmax = nn.Softmax(dim=-1)(linear)
             
             # Add the max softmax values to the softVals array
             softmax_sub = softmax[:, wordIndex]
-            #softmax_sub = softmax
             softmax_sub = softmax_sub.reshape(softmax_sub.shape[0], 1, softmax_sub.shape[1])
             softVals = torch.cat((softVals, softmax_sub), dim=-2)
             
@@ -867,7 +830,6 @@ class transformer(nn.Module):
             
             # Get the new word indices
             wordIdx = dictVals[:, wordIndex]
-            #wordIdx = dictVals
             
             # Get the new words
             newWords = []
@@ -880,7 +842,7 @@ class transformer(nn.Module):
 
         # Add the final words to the output matrix
         for i in range(0, len(inputs)):
-                wordOutputMatrix[i].append(newWords[i])
+            wordOutputMatrix[i].append(newWords[i])
         
         # Return the decoded sentences
         return wordOutputMatrix

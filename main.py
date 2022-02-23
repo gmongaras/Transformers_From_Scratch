@@ -36,16 +36,16 @@ def createVocab(inp):
 
 def main():
     # Hyperparameters
-    inputEmbeddingSize = 64         # Embedding size of the inputs
-    outputEmbeddingSize = 64        # Embedding size of the outputs
-    attention_heads = 8             # Number of attention heads for multi-head attention
-    keySize = 64                    # Size of the key for multi-head attention
+    inputEmbeddingSize = 20         # Embedding size of the inputs
+    outputEmbeddingSize = 20        # Embedding size of the outputs
+    attention_heads = 4             # Number of attention heads for multi-head attention
+    keySize = 16                    # Size of the key for multi-head attention
     querySize = keySize             # Size of the query for multi-head attention
-    valueSize = 64                  # Size of the value for multi-head attention
-    numBlocks = 6                   # Number of transformer blocks to use
-    batchSize = 10                  # Size of each minibatch
+    valueSize = 16                  # Size of the value for multi-head attention
+    numBlocks = 4                   # Number of transformer blocks to use
+    batchSize = 20                  # Size of each minibatch
     warmupSteps = 4000              # Number of warmup steps to train the model
-    numSteps = 10000                 # Total number of steps to train the model
+    numSteps = 1000                 # Total number of steps to train the model
     maxSentenceSize = 140           # The max size of each sentence
     clipVal = 100000                # The bound used to clip the gradients
     
@@ -68,8 +68,9 @@ def main():
     
     
     # Testing the model
-    testData = np.array(["Implementation of the President to enhance the Russian Federation",
-                         "This is another test sentence"])
+    testData = np.array(["Implementation of the President to enhance the Russian Federation.",
+                         "This is another test sentence.",
+                         "The high debt burden has weakened the capacity of many Governments to service their increasing external debt and has eroded resources available for social development."])
         
     
     
@@ -127,9 +128,6 @@ def main():
         if not os.path.isdir(graphDir):
             os.mkdir(graphDir)
         plt.savefig(lossPlotFileName)
-    
-    
-    
     
     ### Testing The Model ###
     output = model(testData)
