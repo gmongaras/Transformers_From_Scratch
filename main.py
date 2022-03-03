@@ -56,7 +56,7 @@ def main():
     outputFileName = "data2/spanish_sub.txt"        # Name of the output data file
     lossPlotFileName = "visualizations/plot.png"    # Name of the file to save the loss plot to
     modelSaveName = "models/modelCkPt.pt"           # Name of the file to save the model to
-    modelLoadName = "models/modelCkPt.pt"           # Name of the file to load the model from
+    modelLoadName = "models/modelCkPt_100E_6L.pt"   # Name of the file to load the model from
 
 
 
