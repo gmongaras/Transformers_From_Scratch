@@ -44,7 +44,7 @@ def main():
     valueSize = 16                  # Size of the value for multi-head attention
     numBlocks = 4                   # Number of transformer blocks to use
     batchSize = 20                  # Size of each minibatch
-    warmupSteps = 4000              # Number of warmup steps to train the model
+    warmupSteps = 600               # Number of warmup steps to train the model
     numSteps = 1000                 # Total number of steps to train the model
     maxSentenceSize = 140           # The max size of each sentence
     clipVal = 100000                # The bound used to clip the gradients
@@ -137,7 +137,7 @@ def main():
     for i in range(0, len(testData)):
         v = output[i] + ["<END>"]
         print(f"English: {testData[i]}")
-        print(f"Spanish: {' '.join(v[v.index('<START>')+1:v.index('<END>')])}")
+        print(f"Spanish: {' '.join(v[v.index('<START>')+2:v.index('<END>')])}")
         print()
 
 
