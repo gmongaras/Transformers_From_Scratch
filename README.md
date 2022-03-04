@@ -70,21 +70,26 @@ Unfortunately, I do not have the hardware required to train the model on a large
 
 ### Beginning of Training
 Here's the progress the model made during the beginning of it's training
+
 ![Beginning of Training](https://github.com/gmongaras/Transformers_From_Scratch/blob/main/Progress%20Images/Beginning_Of_Training.png)
 
 ### Middle of Training
 Here's the progress the same model made during the middle of it's training
+
 ![Middle of Training](https://github.com/gmongaras/Transformers_From_Scratch/blob/main/Progress%20Images/Middle_Of_Training.png)
 
 ### End of Training
 Here's the progress the model made at the end of it's training on the training dataset
+
 ![End of Training](https://github.com/gmongaras/Transformers_From_Scratch/blob/main/Progress%20Images/End_Of_Training.png)
 
 And here's the translations on a few test sentences
+
 ![Test Results](https://github.com/gmongaras/Transformers_From_Scratch/blob/main/Progress%20Images/Test_Results.png)
 
 As you can see, the model did really good on the training examples and practically perfectly translated all training sentences. As for the test dataset, the model clearly didn't get the predictions correct, but this problem is due to the small training smaple I used. If it used all the data, the model will likely be able to effectively translate these sentences along with new ones it sees.
 
 ### Training Plot
 Below is a plot showing the progress of the model over 1000 steps where the y axis is the loss and the x axis is the step number.
+
 ![Training Plot](https://github.com/gmongaras/Transformers_From_Scratch/blob/main/visualizations/plot_100E_6L.png)
