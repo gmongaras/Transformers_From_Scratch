@@ -41,7 +41,9 @@ After each step, the model will output some text to the console showing its prog
 - The second line is the first 10 words in an English training sentence
 - The third line is the first 10 words in a Spanish training sentence (what we want the model to predict)
 - The fourth line is the first 10 words the model predict on the English training sentence
+
 The output looks as follows:
+
 <img width="392" alt="image" src="https://user-images.githubusercontent.com/43501738/155207336-3af01b76-9cc0-43de-8c09-e61a15ea2935.png">
 
 ## Testing The Model
@@ -59,9 +61,26 @@ By default, the model will be saved to the `models/` directory and will be saved
 As stated in the <strong>Training The Model</strong> section, the model will be saved every 5 steps by default. This parameter can be changed by specifying the number of steps until the model is saved using the `stepsToSave` variable in the <strong>Other parameters</strong> section of the main function.
 
 To load a model, change the `loadModel` flag in the <strong>Other parameters</strong> to true and change the `modelLoadName` variable in the <strong>File variables</strong> section to the path of the file you want to load in.
+
 <strong>NOTE: The hyperparameters at the top of the main function must be the same as the hyperparameters of the model being loaded in</strong>
 
 # Results
 Unfortunately, I do not have the hardware required to train the model on a large dataset, so I trained it on a small sample of the data, which can be found in the `data2` directory of this repo. After about 1000 steps, the model pretty much mastered the small dataset, as shown below.
 
-<strong>I will add images later</strong>
+
+### Beginning of Training
+Here's the progress the model made during the beginning of it's training
+![Beginning of Training](https://github.com/gmongaras/Transformers_From_Scratch/blob/main/Progress%20Images/Beginning_Of_Training.png)
+
+### Middle of Training
+Here's the progress the same model made during the middle of it's training
+![Middle of Training](https://github.com/gmongaras/Transformers_From_Scratch/blob/main/Progress%20Images/Middle_Of_Training.png)
+
+### End of Training
+Here's the progress the model made at the end of it's training on the training dataset
+![End of Training](https://github.com/gmongaras/Transformers_From_Scratch/blob/main/Progress%20Images/End_Of_Training.png)
+
+And here's the translations on a few test sentences
+![Test_Results](https://github.com/gmongaras/Transformers_From_Scratch/blob/main/Progress%20Images/Test_Results.png)
+
+As you can see, the model did really good on the training examples and practically perfectly translated all training sentences. As for the test dataset, the model clearly didn't get the predictions correct, but this problem is due to the small training smaple I used. If it used all the data, the model will likely be able to effectively translate these sentences along with new ones it sees.
